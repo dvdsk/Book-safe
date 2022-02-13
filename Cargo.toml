@@ -8,8 +8,9 @@ edition = "2021"
 [dependencies]
 clap = { version = "3", features = ["derive"] }
 color-eyre = "0.6"
-indextree = "4.3.1"
+indextree = "4.3"
 time = { version = "0.3", features = ["local-offset"] }
+ofiles = "0.2"
 
 [profile.dev.package.backtrace]
 opt-level = 3

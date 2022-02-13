@@ -2,13 +2,14 @@ use std::collections::HashMap;
 use std::fmt::Display;
 use std::fs;
 
+use color_eyre::{Result, eyre::eyre};
 use indextree::{Arena, NodeId};
 
 const DIR: &str = "data/xochitl";
 
 fn extract_field<'a>(metadata: &'a str, pattern: &str) -> Option<&'a str> {
     let a = metadata.find(pattern)? + pattern.len();
-    let b = a + &metadata[a..].find("\"").unwrap();
+    let b = a + metadata[a..].find('\"').unwrap();
 
     Some(&metadata[a..b])
 }
@@ -30,12 +31,27 @@ fn is_folder(metadata: &str) -> bool {
     }
 }
 
-type Entry = String;
+#[derive(Eq, PartialEq, Hash, Debug, Clone)]
+pub struct Uuid(String);
+
+impl std::fmt::Display for Uuid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl std::convert::From<&str> for Uuid {
+    fn from(s: &str) -> Self {
+        Uuid(s.to_owned())
+    }
+}
+
 #[derive(Default)]
 pub struct Tree {
     arena: Arena<()>,
-    to_node: HashMap<Entry, NodeId>,
-    to_files: HashMap<Entry, Vec<Entry>>,
+    node: HashMap<Uuid, NodeId>,
+    name: HashMap<NodeId, String>,
+    files: HashMap<NodeId, Vec<Uuid>>,
 }
 
 impl Display for Tree {
@@ -49,18 +65,18 @@ impl Display for Tree {
 }
 
 impl Tree {
-    pub fn to_name(&self) -> HashMap<NodeId, Entry> {
-        let to_name: HashMap<NodeId, Entry> = self
-            .to_node
+    pub fn to_name(&self) -> HashMap<NodeId, Uuid> {
+        let to_name: HashMap<NodeId, Uuid> = self
+            .node
             .iter()
-            .map(|(k, v)| (v.to_owned(), k.to_owned()))
+            .map(|(k, v)| (v.to_owned(), (*k).clone()))
             .collect();
         to_name
     }
 
     pub fn print(
         &self,
-        to_name: &HashMap<NodeId, Entry>,
+        to_name: &HashMap<NodeId, Uuid>,
         node: NodeId,
         indent: usize,
         f: &mut std::fmt::Formatter,
@@ -68,12 +84,12 @@ impl Tree {
         let node_name = to_name.get(&node).unwrap();
         let ident_str: String = std::iter::once(' ').cycle().take(indent * 4).collect();
         match indent {
-            0 => write!(f, "    {node_name}\n")?,
-            _ => write!(f, "{ident_str}|-- {node_name}\n")?,
+            0 => writeln!(f, "    {node_name}")?,
+            _ => writeln!(f, "{ident_str}|-- {node_name}")?,
         }
-        if let Some(files) = self.to_files.get(node_name) {
+        if let Some(files) = self.files.get(&node) {
             for file in files {
-                write!(f, "{ident_str}    |-- {file}\n")?;
+                writeln!(f, "{ident_str}    |-- {file}")?;
             }
         }
 
@@ -83,8 +99,8 @@ impl Tree {
         Ok(())
     }
 
-    pub fn root(&self) -> (&str, &NodeId) {
-        for (name, node_id) in &self.to_node {
+    pub fn root(&self) -> (&Uuid, &NodeId) {
+        for (name, node_id) in &self.node {
             let node = self.arena.get(*node_id).unwrap();
             if node.parent().is_none() {
                 return (name, node_id);
@@ -93,51 +109,70 @@ impl Tree {
         panic!("tree should have a root")
     }
 
-    pub fn children(&self, dir: &str) -> Option<(Vec<Entry>, Vec<Entry>)> {
+    pub fn children(
+        &self,
+        path: String,
+    ) -> Result<(Vec<Uuid>, Vec<String>)> {
         let mut files = Vec::new();
         let mut folders = Vec::new();
 
-        let to_name = self.to_name();
-        let node = self.to_node.get(dir)?;
+        let mut node = *self.root().1;
+        for comp in path.split('/') {
+            node = node
+                .children(&self.arena)
+                .find(|n| {
+                    let name = self.name.get(n).unwrap();
+                    name == comp
+                })
+                .ok_or_else(|| eyre!("path incorrect, failded to find component: {comp}"))?;
+        }
 
-        for folder in node
-            .descendants(&self.arena)
-            .map(|id| to_name.get(&id).unwrap())
-        {
-            if let Some(content) = self.to_files.get(folder) {
+        for folder in node.descendants(&self.arena) {
+            if let Some(content) = self.files.get(&folder) {
                 files.extend_from_slice(content);
             }
+            let folder = self.name.get(&folder).unwrap();
             folders.push(folder.to_owned());
         }
-        Some((files, folders))
+        Ok((files, folders))
     }
 
-    pub fn add_file(&mut self, id: String, parent: Option<&str>) {
+    pub fn add_file(&mut self, id: Uuid, parent: Option<Uuid>) {
         let parent = parent.unwrap();
-        match self.to_files.get_mut(parent) {
+        let parent_node = match self.node.get(&parent) {
+            Some(n) => *n,
+            None => {
+                let parent_node = self.arena.new_node(());
+                self.node.insert(parent, parent_node);
+                parent_node
+            }
+        };
+        match self.files.get_mut(&parent_node) {
             Some(list) => list.push(id),
             None => {
-                self.to_files.insert(parent.to_owned(), vec![id]);
+                self.files.insert(parent_node, vec![id]);
             }
         }
     }
 
-    pub fn add_folder(&mut self, id: String, parent: Option<String>) {
-        let node_id = match self.to_node.get(&id) {
+    pub fn add_folder(&mut self, id: Uuid, parent: Option<Uuid>, name: String) {
+        let node_id = match self.node.get(&id) {
             Some(node) => *node,
             None => {
                 let node_id = self.arena.new_node(());
-                self.to_node.insert(id, node_id.clone());
+                self.node.insert(id, node_id);
                 node_id
             }
         };
 
+        self.name.insert(node_id, name);
+
         if let Some(p) = parent {
-            let parent_node_id = match self.to_node.get(&p) {
+            let parent_node_id = match self.node.get(&p) {
                 Some(p) => *p,
                 None => {
                     let parent_node_id = self.arena.new_node(());
-                    self.to_node.insert(p, parent_node_id.clone());
+                    self.node.insert(p, parent_node_id);
                     parent_node_id
                 }
             };
@@ -146,7 +181,7 @@ impl Tree {
     }
 }
 
-pub fn map() -> (Tree, HashMap<String, String>) {
+pub fn map() -> (Tree, HashMap<String, Uuid>) {
     let mut tree = Tree::default();
     let mut index = HashMap::new();
 
@@ -159,14 +194,14 @@ pub fn map() -> (Tree, HashMap<String, String>) {
             None => continue,
         }
 
-        let id = path.file_name().unwrap().to_str().unwrap().to_owned();
+        let id = Uuid(path.file_stem().unwrap().to_str().unwrap().to_owned());
         let metadata = fs::read_to_string(path).unwrap();
-        let parent_id = parent_id(&metadata);
+        let parent_id = parent_id(&metadata).map(str::to_owned).map(Uuid);
         let name = name(&metadata).unwrap().to_owned();
-        index.insert(name, id.clone());
+        index.insert(name.clone(), id.clone());
 
         match is_folder(&metadata) {
-            true => tree.add_folder(id, parent_id.map(str::to_owned)),
+            true => tree.add_folder(id, parent_id, name),
             false => tree.add_file(id, parent_id),
         }
     }
@@ -199,6 +234,7 @@ fn extract_parent_id() {
     )
 }
 
+#[cfg(test)]
 fn test_tree() -> Tree {
     let node_parent_pairs = [
         ("a0", Some("ROOT")),
@@ -216,9 +252,9 @@ fn test_tree() -> Tree {
     let mut tree = Tree::default();
     for (name, parent) in node_parent_pairs {
         if name.chars().next().unwrap().is_uppercase() {
-            tree.add_folder(name.into(), parent.map(str::to_owned));
+            tree.add_folder(name.into(), parent.map(str::to_owned).map(Uuid), name.into());
         } else {
-            tree.add_file(name.into(), parent);
+            tree.add_file(name.into(), parent.map(Uuid::from));
         }
     }
     tree
@@ -240,7 +276,7 @@ fn tree() {
 
     let tree = test_tree();
 
-    assert_eq!(tree.root().0, "ROOT");
+    assert_eq!(tree.root().0 .0, "ROOT");
     let print = format!("{tree}");
     let correct = r###"    ROOT
     |-- a0
@@ -259,7 +295,7 @@ fn tree() {
 #[test]
 fn children() {
     let tree = test_tree();
-    let (files, folders) = tree.children("A0").unwrap();
-    assert_eq!(files, vec!("a1", "a2"));
-    assert_eq!(folders, vec!("A0", "A1"));
+    let (files, folders) = tree.children(std::iter::once("A0")).unwrap();
+    assert_eq!(files, vec!("a1".into(), "a2".into()));
+    assert_eq!(folders, vec!("A0".to_owned(), "A1".to_owned()));
 }

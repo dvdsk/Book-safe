@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use clap::Parser;
 use color_eyre::eyre;
 use eyre::{eyre, Result, WrapErr};
@@ -27,35 +29,31 @@ fn try_to_time(s: &str) -> Result<time::Time> {
         .ok_or_else(|| eyre!("hours and minutes must be separated by :"))?;
     let h = h.parse().wrap_err("could not parse hour")?;
     let m = m.parse().wrap_err("could not parse minute")?;
-    Ok(time::Time::from_hms(h, m, 0).wrap_err("hour or minute not possible")?)
+    time::Time::from_hms(h, m, 0).wrap_err("hour or minute not possible")
 }
 
-fn lock(forbidden: Vec<String>) -> Result<()> {
-    let (tree, mut index) = directory::map();
-    let mut forbidden: Vec<String> = forbidden
-        .into_iter()
-        .map(|dir| index.remove(&dir).unwrap())
+fn lock(mut forbidden: Vec<String>) -> Result<()> {
+    let (tree, to_fsname) = directory::map();
+    let to_name: HashMap<_, _> = to_fsname
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .map(|(k, v)| (v, k))
         .collect();
     let mut to_lock = Vec::new();
 
     loop {
-        let dir = match forbidden.pop() {
+        let path = match forbidden.pop() {
             None => break,
             Some(d) => d,
         };
 
-        dbg!(&dir);
-        let (mut files, folders) = match tree.children(&dir) {
-            Some(c) => c,
-            None => {
-                println!("directory: {dir} not found, skipping...");
-                continue;
-            }
-        };
+        let (mut files, _folder_paths) = tree.children(path)?;
 
-        forbidden.retain(|f| !folders.contains(f));
+        dbg!("TODO strip containing paths");
+        // forbidden.retain(|f| !folders.contains(f));
         to_lock.append(&mut files);
     }
+    let to_lock: Vec<_> = to_lock.iter().map(|f| to_name.get(f)).collect();
     dbg!(to_lock);
 
     Ok(())
