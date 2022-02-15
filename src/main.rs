@@ -54,7 +54,7 @@ fn lock(mut forbidden: Vec<String>) -> Result<()> {
         to_lock.append(&mut files);
     }
     let to_lock: Vec<_> = to_lock.iter().map(|f| to_name.get(f)).collect();
-    dbg!(to_lock);
+    // dbg!(to_lock);
 
     Ok(())
 }
