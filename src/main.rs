@@ -1,18 +1,24 @@
 use std::collections::HashMap;
+use std::fs;
+use std::io::ErrorKind;
+use std::path::Path;
 
 use clap::Parser;
 use color_eyre::eyre;
 use eyre::{eyre, Result, WrapErr};
 use time::{OffsetDateTime, Time};
 
+use self::directory::Uuid;
+
 mod directory;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    /// names of the folders which content should be locked, comma separated names
+    /// name of a folder to be locked, argument can be passed
+    /// multiple times with diffrent folders
     #[clap(short, long)]
-    forbidden: Vec<String>,
+    lock: Vec<String>,
 
     /// when to hide folders, format 23:59
     #[clap(short, long)]
@@ -32,8 +38,77 @@ fn try_to_time(s: &str) -> Result<time::Time> {
     time::Time::from_hms(h, m, 0).wrap_err("hour or minute not possible")
 }
 
+fn move_doc(uuid: Uuid) -> Result<()> {
+    let dir = Path::new(directory::DIR);
+    let safe = Path::new("locked_books");
+
+    let source = dir.join(&uuid);
+    let dest = safe.join(&uuid);
+    fs::rename(source, dest)
+        .accept_fn(|e| e.kind() == ErrorKind::NotFound) // there isnt always content and/or pdf file
+        .wrap_err_with(|| format!("could not move directory for document: {uuid}"))?;
+
+    for ext in [
+        "bookm",
+        "content",
+        "epub",
+        "epubindex",
+        "metadata",
+        "pagedata",
+        "pdf",
+    ] {
+        let source = dir.join(&uuid).with_extension(ext);
+        let dest = safe.join(&uuid).with_extension(ext);
+        fs::rename(source, dest)
+            .accept_fn(|e| e.kind() == ErrorKind::NotFound) // there isnt always content and/or pdf file
+            .wrap_err_with(|| format!("could not move file with ext: {ext:?}"))?;
+    }
+    Ok(())
+}
+
+pub trait AcceptErr {
+    type Error;
+    fn accept_fn<P: FnMut(&Self::Error) -> bool>(self, predicate: P) -> Self;
+}
+
+impl<E> AcceptErr for Result<(), E> {
+    type Error = E;
+    fn accept_fn<P: FnMut(&Self::Error) -> bool>(self, mut predicate: P) -> Self {
+        match self {
+            Ok(_) => Ok(()),
+            Err(e) if predicate(&e) => Ok(()),
+            Err(e) => Err(e),
+        }
+    }
+}
+
+fn move_docs(mut to_lock: Vec<Uuid>) -> Result<()> {
+    let safe = Path::new("locked_books");
+    fs::create_dir(safe)
+        .accept_fn(|e| e.kind() == ErrorKind::AlreadyExists && safe.is_dir())
+        .wrap_err("could not create books safe")?;
+
+    for uuid in to_lock.drain(..) {
+        move_doc(uuid).wrap_err("could not move document")?;
+    }
+
+    Ok(())
+}
+
+fn unlock() -> Result<()> {
+    let safe = Path::new("locked_books");
+    let dir = Path::new(directory::DIR);
+    for entry in fs::read_dir(safe)? {
+        let entry = entry?;
+        let source = entry.path();
+        let dest = dir.join(source.file_name().unwrap());
+        fs::rename(source, dest)?;
+    }
+    Ok(())
+}
+
 fn lock(mut forbidden: Vec<String>) -> Result<()> {
-    let (tree, to_fsname) = directory::map();
+    let (tree, to_fsname) = directory::map().wrap_err("could not build document tree")?;
     let to_name: HashMap<_, _> = to_fsname
         .iter()
         .map(|(k, v)| (k.clone(), v.clone()))
@@ -47,20 +122,26 @@ fn lock(mut forbidden: Vec<String>) -> Result<()> {
             Some(d) => d,
         };
 
-        let (mut files, _folder_paths) = tree.children(path)?;
-
-        dbg!("TODO strip containing paths");
-        // forbidden.retain(|f| !folders.contains(f));
+        let mut files = tree.children(path)?;
         to_lock.append(&mut files);
     }
-    let to_lock: Vec<_> = to_lock.iter().map(|f| to_name.get(f)).collect();
-    // dbg!(to_lock);
+    // let names: Vec<_> = to_lock.iter().map(|f| to_name.get(f)).collect();
+    // dbg!(names);
+    move_docs(to_lock).wrap_err("Could not move book data")?;
 
     Ok(())
 }
 
-fn unlock(forbidden: Vec<String>) {
-    todo!();
+fn without_overlapping(mut list: Vec<String>) -> Vec<String> {
+    let mut result = Vec::new();
+    list.sort_unstable_by_key(String::len);
+
+    for path in list.drain(..) {
+        if !result.iter().any(|prefix| path.starts_with(prefix)) {
+            result.push(path);
+        }
+    }
+    result
 }
 
 fn main() -> Result<()> {
@@ -73,10 +154,12 @@ fn main() -> Result<()> {
         .wrap_err("could not get time")?
         .time();
 
+    let forbidden = without_overlapping(args.lock);
+
     if should_lock(now, start, end) {
-        lock(args.forbidden).wrap_err("could not lock forbidden folders")?;
+        lock(forbidden).wrap_err("could not lock forbidden folders")?;
     } else {
-        unlock(args.forbidden);
+        unlock().wrap_err("could not unlock all files")?;
     }
 
     Ok(())
@@ -106,4 +189,24 @@ fn time_compare() {
 
     let now = Time::from_hms(23, 09, 0).unwrap();
     assert!(!should_lock(now, start, end));
+}
+
+#[cfg(test)]
+fn vec(list: &[&str]) -> Vec<String> {
+    list.into_iter().map(|s| s.to_string()).collect()
+}
+
+#[test]
+fn overlapping_paths() {
+    let list = vec(&["a/aa/aaa", "b/bb", "a/aa/aab", "b/ba"]);
+    let res = vec(&["b/bb", "b/ba", "a/aa/aaa", "a/aa/aab"]);
+    assert_eq!(res, without_overlapping(list));
+
+    let list = vec(&["a/aa", "b/bb", "a/aa/aab", "b/ba"]);
+    let res = vec(&["a/aa", "b/bb", "b/ba"]);
+    assert_eq!(res, without_overlapping(list));
+
+    let list = vec(&["Books", "Books/Stories"]);
+    let res = vec(&["Books"]);
+    assert_eq!(res, without_overlapping(list));
 }

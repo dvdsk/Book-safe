@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::fs;
+use std::path::Path;
 
-use color_eyre::{eyre::eyre, Result};
+use color_eyre::{eyre::eyre, Result, eyre::WrapErr};
 use indextree::{Arena, NodeId};
 
-const DIR: &str = "data/xochitl";
+pub const DIR: &str = "data/xochitl";
 
 fn extract_field<'a>(metadata: &'a str, pattern: &str) -> Option<&'a str> {
     let a = metadata.find(pattern)? + pattern.len();
@@ -33,6 +34,12 @@ fn is_folder(metadata: &str) -> bool {
 
 #[derive(Eq, PartialEq, Hash, Debug, Clone)]
 pub struct Uuid(String);
+
+impl AsRef<Path> for Uuid {
+    fn as_ref(&self) -> &Path {
+        Path::new(&self.0)
+    }
+}
 
 impl std::fmt::Display for Uuid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -108,11 +115,12 @@ impl Tree {
         self.node.get(&uuid).unwrap()
     }
 
-    pub fn children(&self, path: String) -> Result<(Vec<Uuid>, Vec<String>)> {
+    pub fn children(&self, path: String) -> Result<Vec<Uuid>> {
         let mut files = Vec::new();
-        let mut folders = Vec::new();
 
         let mut node = *self.root(Uuid("".to_owned()));
+
+        // find the right node
         if !path.is_empty() {
             for comp in path.split('/') {
                 node = node
@@ -129,10 +137,8 @@ impl Tree {
             if let Some(content) = self.files.get(&folder) {
                 files.extend_from_slice(content);
             }
-            let folder = self.name.get(&folder).unwrap();
-            folders.push(folder.to_owned());
         }
-        Ok((files, folders))
+        Ok(files)
     }
 
     pub fn add_file(&mut self, uuid: Uuid, parent_uuid: Uuid) {
@@ -176,11 +182,11 @@ impl Tree {
     }
 }
 
-pub fn map() -> (Tree, HashMap<String, Uuid>) {
+pub fn map() -> Result<(Tree, HashMap<String, Uuid>)> {
     let mut tree = Tree::new();
     let mut index = HashMap::new();
 
-    for entry in fs::read_dir(DIR).unwrap() {
+    for entry in fs::read_dir(DIR).wrap_err("remarkable data directory not found")? {
         let path = entry.unwrap().path();
         let ext = path.extension().map(|ext| ext.to_str()).flatten();
         match ext {
@@ -200,7 +206,7 @@ pub fn map() -> (Tree, HashMap<String, Uuid>) {
             false => tree.add_file(uuid, parent_uuid),
         }
     }
-    (tree, index)
+    Ok((tree, index))
 }
 
 #[test]
@@ -291,15 +297,14 @@ fn tree() {
 #[test]
 fn children() {
     let tree = test_tree();
-    let (files, folders) = tree.children("A0".into()).unwrap();
+    let files = tree.children("A0".into()).unwrap();
     assert_eq!(files, vec!("a1".into(), "a2".into()));
-    assert_eq!(folders, vec!("A0".to_owned(), "A1".to_owned()));
 }
 
 #[test]
 fn root_children() {
     let tree = test_tree();
-    let (files, folders) = tree.children("".into()).unwrap();
+    let files = tree.children("".into()).unwrap();
     assert_eq!(
         files,
         vec!(
@@ -308,16 +313,6 @@ fn root_children() {
             "a1".into(),
             "a2".into(),
             "b1".into()
-        )
-    );
-    assert_eq!(
-        folders,
-        vec!(
-            "".to_owned(),
-            "A0".to_owned(),
-            "A1".to_owned(),
-            "B0".to_owned(),
-            "B1".to_owned()
         )
     );
 }
