@@ -2,3 +2,4 @@
 target/
 data/
 Cargo.lock
+locked_books

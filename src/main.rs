@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
+use std::process::Command;
 
 use clap::Parser;
 use color_eyre::eyre;
@@ -32,10 +33,10 @@ struct Args {
 fn try_to_time(s: &str) -> Result<time::Time> {
     let (h, m) = s
         .split_once(":")
-        .ok_or_else(|| eyre!("hours and minutes must be separated by :"))?;
-    let h = h.parse().wrap_err("could not parse hour")?;
-    let m = m.parse().wrap_err("could not parse minute")?;
-    time::Time::from_hms(h, m, 0).wrap_err("hour or minute not possible")
+        .ok_or_else(|| eyre!("Hours and minutes must be separated by :"))?;
+    let h = h.parse().wrap_err("Could not parse hour")?;
+    let m = m.parse().wrap_err("Could not parse minute")?;
+    time::Time::from_hms(h, m, 0).wrap_err("Hour or minute not possible")
 }
 
 fn move_doc(uuid: Uuid) -> Result<()> {
@@ -46,7 +47,7 @@ fn move_doc(uuid: Uuid) -> Result<()> {
     let dest = safe.join(&uuid);
     fs::rename(source, dest)
         .accept_fn(|e| e.kind() == ErrorKind::NotFound) // there isnt always content and/or pdf file
-        .wrap_err_with(|| format!("could not move directory for document: {uuid}"))?;
+        .wrap_err_with(|| format!("Could not move directory for document: {uuid}"))?;
 
     for ext in [
         "bookm",
@@ -61,7 +62,7 @@ fn move_doc(uuid: Uuid) -> Result<()> {
         let dest = safe.join(&uuid).with_extension(ext);
         fs::rename(source, dest)
             .accept_fn(|e| e.kind() == ErrorKind::NotFound) // there isnt always content and/or pdf file
-            .wrap_err_with(|| format!("could not move file with ext: {ext:?}"))?;
+            .wrap_err_with(|| format!("Could not move file with ext: {ext:?}"))?;
     }
     Ok(())
 }
@@ -86,10 +87,10 @@ fn move_docs(mut to_lock: Vec<Uuid>) -> Result<()> {
     let safe = Path::new("locked_books");
     fs::create_dir(safe)
         .accept_fn(|e| e.kind() == ErrorKind::AlreadyExists && safe.is_dir())
-        .wrap_err("could not create books safe")?;
+        .wrap_err("Could not create books safe")?;
 
     for uuid in to_lock.drain(..) {
-        move_doc(uuid).wrap_err("could not move document")?;
+        move_doc(uuid).wrap_err("Could not move document")?;
     }
 
     Ok(())
@@ -108,7 +109,7 @@ fn unlock() -> Result<()> {
 }
 
 fn lock(mut forbidden: Vec<String>) -> Result<()> {
-    let (tree, to_fsname) = directory::map().wrap_err("could not build document tree")?;
+    let (tree, to_fsname) = directory::map().wrap_err("Could not build document tree")?;
     let to_name: HashMap<_, _> = to_fsname
         .iter()
         .map(|(k, v)| (k.clone(), v.clone()))
@@ -144,23 +145,40 @@ fn without_overlapping(mut list: Vec<String>) -> Vec<String> {
     result
 }
 
+fn systemctl_gui(command: &str) -> Result<()> {
+    let output = Command::new("systemctl")
+        .arg("stop")
+        .arg(command)
+        .output()
+        .wrap_err("Could not run systemctl")?;
+
+    if !output.status.success() {
+        let reason = String::from_utf8(output.stderr).unwrap();
+        return Err(eyre!("{reason}").wrap_err("Systemctl returned an error"))
+    }
+
+    Ok(())
+}
+
 fn main() -> Result<()> {
     color_eyre::install()?;
 
     let args = Args::parse();
-    let start = try_to_time(&args.start).wrap_err("invalid start time")?;
-    let end = try_to_time(&args.end).wrap_err("invalid end time")?;
+    let start = try_to_time(&args.start).wrap_err("Invalid start time")?;
+    let end = try_to_time(&args.end).wrap_err("Invalid end time")?;
     let now = OffsetDateTime::now_local()
-        .wrap_err("could not get time")?
+        .wrap_err("Could not get time")?
         .time();
 
     let forbidden = without_overlapping(args.lock);
 
+    systemctl_gui("stop").wrap_err("Could not stop gui")?;
     if should_lock(now, start, end) {
-        lock(forbidden).wrap_err("could not lock forbidden folders")?;
+        lock(forbidden).wrap_err("Could not lock forbidden folders")?;
     } else {
-        unlock().wrap_err("could not unlock all files")?;
+        unlock().wrap_err("Could not unlock all files")?;
     }
+    systemctl_gui("start").wrap_err("Could not start gui")?;
 
     Ok(())
 }
