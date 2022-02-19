@@ -1,21 +1,21 @@
-use std::collections::HashMap;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
-use std::process::Command;
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use color_eyre::eyre;
-use eyre::{eyre, Result, WrapErr};
-use time::{OffsetDateTime, Time};
+use eyre::{Result, WrapErr};
+use time::OffsetDateTime;
 
-use self::directory::Uuid;
+use directory::Uuid;
+use util::AcceptErr;
 
 mod directory;
+mod systemd;
+mod util;
 
 #[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
-struct Args {
+pub struct Args {
     /// name of a folder to be locked, argument can be passed
     /// multiple times with diffrent folders
     #[clap(short, long)]
@@ -30,13 +30,18 @@ struct Args {
     end: String,
 }
 
-fn try_to_time(s: &str) -> Result<time::Time> {
-    let (h, m) = s
-        .split_once(":")
-        .ok_or_else(|| eyre!("Hours and minutes must be separated by :"))?;
-    let h = h.parse().wrap_err("Could not parse hour")?;
-    let m = m.parse().wrap_err("Could not parse minute")?;
-    time::Time::from_hms(h, m, 0).wrap_err("Hour or minute not possible")
+#[derive(Subcommand, Debug)]
+enum Commands {
+    Run(Args),
+    Install(Args),
+    Remove,
+}
+
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct Cli {
+    #[clap(subcommand)]
+    command: Commands,
 }
 
 fn move_doc(uuid: Uuid) -> Result<()> {
@@ -67,22 +72,6 @@ fn move_doc(uuid: Uuid) -> Result<()> {
     Ok(())
 }
 
-pub trait AcceptErr {
-    type Error;
-    fn accept_fn<P: FnMut(&Self::Error) -> bool>(self, predicate: P) -> Self;
-}
-
-impl<E> AcceptErr for Result<(), E> {
-    type Error = E;
-    fn accept_fn<P: FnMut(&Self::Error) -> bool>(self, mut predicate: P) -> Self {
-        match self {
-            Ok(_) => Ok(()),
-            Err(e) if predicate(&e) => Ok(()),
-            Err(e) => Err(e),
-        }
-    }
-}
-
 fn move_docs(mut to_lock: Vec<Uuid>) -> Result<()> {
     let safe = Path::new("locked_books");
     fs::create_dir(safe)
@@ -109,12 +98,7 @@ fn unlock() -> Result<()> {
 }
 
 fn lock(mut forbidden: Vec<String>) -> Result<()> {
-    let (tree, to_fsname) = directory::map().wrap_err("Could not build document tree")?;
-    let to_name: HashMap<_, _> = to_fsname
-        .iter()
-        .map(|(k, v)| (k.clone(), v.clone()))
-        .map(|(k, v)| (v, k))
-        .collect();
+    let (tree, _) = directory::map().wrap_err("Could not build document tree")?;
     let mut to_lock = Vec::new();
 
     loop {
@@ -126,8 +110,6 @@ fn lock(mut forbidden: Vec<String>) -> Result<()> {
         let mut files = tree.children(path)?;
         to_lock.append(&mut files);
     }
-    // let names: Vec<_> = to_lock.iter().map(|f| to_name.get(f)).collect();
-    // dbg!(names);
     move_docs(to_lock).wrap_err("Could not move book data")?;
 
     Ok(())
@@ -145,86 +127,92 @@ fn without_overlapping(mut list: Vec<String>) -> Vec<String> {
     result
 }
 
-fn systemctl_gui(command: &str) -> Result<()> {
-    let output = Command::new("systemctl")
-        .arg("stop")
-        .arg(command)
-        .output()
-        .wrap_err("Could not run systemctl")?;
-
-    if !output.status.success() {
-        let reason = String::from_utf8(output.stderr).unwrap();
-        return Err(eyre!("{reason}").wrap_err("Systemctl returned an error"))
+// TODO commands: Run, Install, Uninstall. Last one does not need current args
+// Install creates a systemd unit file and loads it
+// Uninstall removes a systemd unit file and unloads it
+fn main() -> Result<()> {
+    color_eyre::install()?;
+    let cli = Cli::parse();
+    match cli.command {
+        Commands::Run(args) => run(args).wrap_err("Error while running")?,
+        Commands::Install(args) => {
+            install(&args).wrap_err("Error while installing")?;
+            run(args).wrap_err("Error running after install")?;
+        }
+        Commands::Remove => todo!(),
     }
-
     Ok(())
 }
 
-fn main() -> Result<()> {
-    color_eyre::install()?;
+fn install(args: &Args) -> Result<()> {
+    systemd::write_service(args).wrap_err("Error creating service")?;
+    systemd::write_timer(args).wrap_err("Error creating timer")?;
+    systemd::enable().wrap_err("Error enabling service timer")?;
+    Ok(())
+}
 
-    let args = Args::parse();
-    let start = try_to_time(&args.start).wrap_err("Invalid start time")?;
-    let end = try_to_time(&args.end).wrap_err("Invalid end time")?;
+fn run(args: Args) -> Result<()> {
+    let start = util::try_to_time(&args.start).wrap_err("Invalid start time")?;
+    let end = util::try_to_time(&args.end).wrap_err("Invalid end time")?;
     let now = OffsetDateTime::now_local()
         .wrap_err("Could not get time")?
         .time();
 
     let forbidden = without_overlapping(args.lock);
 
-    systemctl_gui("stop").wrap_err("Could not stop gui")?;
-    if should_lock(now, start, end) {
+    systemd::ui_action("stop").wrap_err("Could not stop gui")?;
+    if util::should_lock(now, start, end) {
+        println!("locking folders");
         lock(forbidden).wrap_err("Could not lock forbidden folders")?;
     } else {
+        println!("unlocking everything");
         unlock().wrap_err("Could not unlock all files")?;
     }
-    systemctl_gui("start").wrap_err("Could not start gui")?;
+    systemd::ui_action("start").wrap_err("Could not start gui")?;
 
     Ok(())
 }
 
-fn should_lock(now: Time, start: Time, end: Time) -> bool {
-    if start <= end {
-        now >= start && now <= end
-    } else {
-        now >= start || now <= end
-    }
-}
-
-#[test]
-fn time_compare() {
-    let start = Time::from_hms(23, 10, 0).unwrap();
-    let end = Time::from_hms(8, 5, 0).unwrap();
-
-    let now = Time::from_hms(8, 10, 0).unwrap();
-    assert!(!should_lock(now, start, end));
-
-    let now = Time::from_hms(8, 4, 0).unwrap();
-    assert!(should_lock(now, start, end));
-
-    let now = Time::from_hms(23, 11, 0).unwrap();
-    assert!(should_lock(now, start, end));
-
-    let now = Time::from_hms(23, 09, 0).unwrap();
-    assert!(!should_lock(now, start, end));
-}
-
 #[cfg(test)]
-fn vec(list: &[&str]) -> Vec<String> {
-    list.into_iter().map(|s| s.to_string()).collect()
-}
+mod tests {
+    use super::*;
+    use time::Time;
 
-#[test]
-fn overlapping_paths() {
-    let list = vec(&["a/aa/aaa", "b/bb", "a/aa/aab", "b/ba"]);
-    let res = vec(&["b/bb", "b/ba", "a/aa/aaa", "a/aa/aab"]);
-    assert_eq!(res, without_overlapping(list));
+    #[test]
+    fn time_compare() {
+        let start = Time::from_hms(23, 10, 0).unwrap();
+        let end = Time::from_hms(8, 5, 0).unwrap();
 
-    let list = vec(&["a/aa", "b/bb", "a/aa/aab", "b/ba"]);
-    let res = vec(&["a/aa", "b/bb", "b/ba"]);
-    assert_eq!(res, without_overlapping(list));
+        let now = Time::from_hms(8, 10, 0).unwrap();
+        assert!(!util::should_lock(now, start, end));
 
-    let list = vec(&["Books", "Books/Stories"]);
-    let res = vec(&["Books"]);
-    assert_eq!(res, without_overlapping(list));
+        let now = Time::from_hms(8, 4, 0).unwrap();
+        assert!(util::should_lock(now, start, end));
+
+        let now = Time::from_hms(23, 11, 0).unwrap();
+        assert!(util::should_lock(now, start, end));
+
+        let now = Time::from_hms(23, 09, 0).unwrap();
+        assert!(!util::should_lock(now, start, end));
+    }
+
+    #[cfg(test)]
+    fn vec(list: &[&str]) -> Vec<String> {
+        list.into_iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn overlapping_paths() {
+        let list = vec(&["a/aa/aaa", "b/bb", "a/aa/aab", "b/ba"]);
+        let res = vec(&["b/bb", "b/ba", "a/aa/aaa", "a/aa/aab"]);
+        assert_eq!(res, without_overlapping(list));
+
+        let list = vec(&["a/aa", "b/bb", "a/aa/aab", "b/ba"]);
+        let res = vec(&["a/aa", "b/bb", "b/ba"]);
+        assert_eq!(res, without_overlapping(list));
+
+        let list = vec(&["Books", "Books/Stories"]);
+        let res = vec(&["Books"]);
+        assert_eq!(res, without_overlapping(list));
+    }
 }

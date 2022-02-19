@@ -8,7 +8,7 @@ set -e
 
 SERVER_ADDR="remarkable"
 SERVER_USER="root"
-SERVER_DIR="/home/$SERVER_USER/"
+SERVER_DIR="/home/$SERVER_USER/locker"
 
 dir=debug
 if [ "$1" = "--release" ]; then
@@ -21,7 +21,7 @@ rsync -vh --progress \
   target/armv7-unknown-linux-gnueabihf/$dir/book-lock \
   $SERVER_ADDR:/tmp/
 
-# # sets up/updates the systemd service and places the binary
+# sets up/updates the systemd service and places the binary
 # cmds="
 # sed -i \"s/<USER>/$SERVER_USER/g\" /tmp/llama_lamps.service
 # sed -i \"s+<DIR>+$SERVER_DIR+g\" /tmp/llama_lamps.service
@@ -33,4 +33,10 @@ rsync -vh --progress \
 # sudo systemctl restart llama_lamps.service
 # "
 
-# ssh -t $SERVER_ADDR "$cmds"
+cmds="
+mkdir -p $SERVER_DIR
+mv /tmp/book-lock $SERVER_DIR/book-lock
+chown $SERVER_USER:$SERVER_USER $SERVER_DIR/book-lock
+"
+
+ssh -t $SERVER_ADDR "$cmds"

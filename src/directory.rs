@@ -6,6 +6,9 @@ use std::path::Path;
 use color_eyre::{eyre::eyre, Result, eyre::WrapErr};
 use indextree::{Arena, NodeId};
 
+#[cfg(target_arch="arm")]
+pub const DIR: &str = "/home/root/.local/share/remarkable/xochitl";
+#[cfg(not(target_arch="arm"))]
 pub const DIR: &str = "data/xochitl";
 
 fn extract_field<'a>(metadata: &'a str, pattern: &str) -> Option<&'a str> {
