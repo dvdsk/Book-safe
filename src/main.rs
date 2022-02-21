@@ -5,12 +5,13 @@ use std::path::Path;
 use clap::{Parser, Subcommand};
 use color_eyre::eyre;
 use eyre::{Result, WrapErr};
-use time::OffsetDateTime;
+use time::{OffsetDateTime, Time};
 
 use directory::Uuid;
 use util::AcceptErr;
 
 mod directory;
+mod report;
 mod systemd;
 mod util;
 
@@ -46,10 +47,9 @@ struct Cli {
 
 fn move_doc(uuid: Uuid) -> Result<()> {
     let dir = Path::new(directory::DIR);
-    let safe = Path::new("locked_books");
 
     let source = dir.join(&uuid);
-    let dest = safe.join(&uuid);
+    let dest = safe_dir().join(&uuid);
     fs::rename(source, dest)
         .accept_fn(|e| e.kind() == ErrorKind::NotFound) // there isnt always content and/or pdf file
         .wrap_err_with(|| format!("Could not move directory for document: {uuid}"))?;
@@ -64,7 +64,7 @@ fn move_doc(uuid: Uuid) -> Result<()> {
         "pdf",
     ] {
         let source = dir.join(&uuid).with_extension(ext);
-        let dest = safe.join(&uuid).with_extension(ext);
+        let dest = safe_dir().join(&uuid).with_extension(ext);
         fs::rename(source, dest)
             .accept_fn(|e| e.kind() == ErrorKind::NotFound) // there isnt always content and/or pdf file
             .wrap_err_with(|| format!("Could not move file with ext: {ext:?}"))?;
@@ -72,23 +72,26 @@ fn move_doc(uuid: Uuid) -> Result<()> {
     Ok(())
 }
 
-fn move_docs(mut to_lock: Vec<Uuid>) -> Result<()> {
-    let safe = Path::new("locked_books");
-    fs::create_dir(safe)
-        .accept_fn(|e| e.kind() == ErrorKind::AlreadyExists && safe.is_dir())
-        .wrap_err("Could not create books safe")?;
+fn safe_dir() -> &'static Path {
+    Path::new("locked_books")
+}
 
+fn ensure_safe_dir() -> Result<()> {
+    fs::create_dir(safe_dir())
+        .accept_fn(|e| e.kind() == ErrorKind::AlreadyExists && safe_dir().is_dir())
+        .wrap_err("Could not create books safe")
+}
+
+fn move_docs(mut to_lock: Vec<Uuid>) -> Result<()> {
     for uuid in to_lock.drain(..) {
         move_doc(uuid).wrap_err("Could not move document")?;
     }
-
     Ok(())
 }
 
 fn unlock() -> Result<()> {
-    let safe = Path::new("locked_books");
     let dir = Path::new(directory::DIR);
-    for entry in fs::read_dir(safe)? {
+    for entry in fs::read_dir(safe_dir())? {
         let entry = entry?;
         let source = entry.path();
         let dest = dir.join(source.file_name().unwrap());
@@ -97,20 +100,22 @@ fn unlock() -> Result<()> {
     Ok(())
 }
 
-fn lock(mut forbidden: Vec<String>) -> Result<()> {
+fn lock(mut forbidden: Vec<String>, unlock_at: Time) -> Result<()> {
+    unlock().wrap_err("could not unlock files")?; // ensure nothing is in locked folder
     let (tree, _) = directory::map().wrap_err("Could not build document tree")?;
     let mut to_lock = Vec::new();
 
-    loop {
-        let path = match forbidden.pop() {
-            None => break,
-            Some(d) => d,
-        };
-
-        let mut files = tree.children(path)?;
+    let roots: Vec<_> = forbidden
+        .drain(..)
+        .map(|p| tree.node_for(&p))
+        .collect::<Result<_>>()?;
+    for node in &roots {
+        let mut files = tree.descendant_files(*node)?;
         to_lock.append(&mut files);
     }
     move_docs(to_lock).wrap_err("Could not move book data")?;
+    let pdf = report::build(tree, roots, unlock_at);
+    report::save(pdf).wrap_err("Could not save generated report")?;
 
     Ok(())
 }
@@ -133,22 +138,13 @@ fn without_overlapping(mut list: Vec<String>) -> Vec<String> {
 fn main() -> Result<()> {
     color_eyre::install()?;
     let cli = Cli::parse();
-    match cli.command {
-        Commands::Run(args) => run(args).wrap_err("Error while running")?,
-        Commands::Install(args) => {
-            install(&args).wrap_err("Error while installing")?;
-            run(args).wrap_err("Error running after install")?;
-        }
-        Commands::Remove => todo!(),
-    }
-    Ok(())
-}
 
-fn install(args: &Args) -> Result<()> {
-    systemd::write_service(args).wrap_err("Error creating service")?;
-    systemd::write_timer(args).wrap_err("Error creating timer")?;
-    systemd::enable().wrap_err("Error enabling service timer")?;
-    Ok(())
+    ensure_safe_dir()?;
+    match cli.command {
+        Commands::Run(args) => run(args).wrap_err("Error while running"),
+        Commands::Install(args) => install(args).wrap_err("Error while installing"),
+        Commands::Remove => remove().wrap_err("Error while removing"),
+    }
 }
 
 fn run(args: Args) -> Result<()> {
@@ -160,17 +156,33 @@ fn run(args: Args) -> Result<()> {
 
     let forbidden = without_overlapping(args.lock);
 
+    #[cfg(target_arch = "arm")]
     systemd::ui_action("stop").wrap_err("Could not stop gui")?;
     if util::should_lock(now, start, end) {
         println!("locking folders");
-        lock(forbidden).wrap_err("Could not lock forbidden folders")?;
+        lock(forbidden, end).wrap_err("Could not lock forbidden folders")?;
     } else {
         println!("unlocking everything");
         unlock().wrap_err("Could not unlock all files")?;
     }
+    #[cfg(target_arch = "arm")]
     systemd::ui_action("start").wrap_err("Could not start gui")?;
 
     Ok(())
+}
+
+fn install(args: Args) -> Result<()> {
+    systemd::write_service(&args).wrap_err("Error creating service")?;
+    systemd::write_timer(&args).wrap_err("Error creating timer")?;
+    systemd::enable().wrap_err("Error enabling service timer")?;
+    unlock().wrap_err("Error unlocking any locked documents")?;
+    run(args).wrap_err("Failed first run after install")
+}
+
+fn remove() -> Result<()> {
+    systemd::disable().wrap_err("Error disabling service")?;
+    systemd::remove_units().wrap_err("Error removing service files")?;
+    unlock().wrap_err("Error unlocking any locked documents")
 }
 
 #[cfg(test)]

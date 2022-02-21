@@ -8,6 +8,7 @@ use eyre::{eyre, Result, WrapErr};
 
 use crate::util;
 
+#[cfg(target_arch = "arm")]
 pub fn ui_action(operation: &str) -> Result<()> {
     let output = Command::new("systemctl")
         .arg(operation)
@@ -47,7 +48,10 @@ fn wait_for(service: &str, state: bool) -> Result<()> {
         }
         thread::sleep(Duration::from_millis(50));
     }
-    Err(eyre!("timed out after 1 second"))
+    match state {
+        true => Err(eyre!("Time out waiting activation")),
+        false => Err(eyre!("Time out waiting deactivation")),
+    }
 }
 
 // String should be written to a .service file
@@ -60,7 +64,8 @@ fn service_str(_args: &crate::Args) -> Result<String> {
 
     let working_dir = path.parent().unwrap().to_str().unwrap();
     let bin_path = path.to_str().unwrap();
-    let args: String = std::env::args().skip(1)
+    let args: String = std::env::args()
+        .skip(1)
         .map(|mut s| {
             s.push(' ');
             s
@@ -82,9 +87,15 @@ WantedBy=multi-user.target
     ))
 }
 
+macro_rules! unit_path {
+    ($ext:literal) => {
+        concat!("/etc/systemd/system/", env!("CARGO_PKG_NAME"), ".", $ext)
+    };
+}
+
 pub fn write_service(args: &crate::Args) -> Result<()> {
     let service = service_str(args).wrap_err("Could not construct service")?;
-    let path = concat!("/etc/systemd/system/", env!("CARGO_PKG_NAME"), ".service");
+    let path = unit_path!("service");
     fs::write(path, service).wrap_err_with(|| format!("could not write file to: {path}"))?;
     Ok(())
 }
@@ -114,18 +125,21 @@ WantedBy=timers.target
     ))
 }
 
-// TODO replace with macro for service and timer
 pub fn write_timer(args: &crate::Args) -> Result<()> {
     let timer = timer_str(args).wrap_err("Could not construct timer")?;
-    let path = concat!("/etc/systemd/system/", env!("CARGO_PKG_NAME"), ".timer");
-    fs::write(path, timer).wrap_err_with(|| format!("could not write file to: {path}"))?;
-    Ok(())
+    let path = unit_path!("timer");
+    fs::write(path, timer).wrap_err_with(|| format!("could not write file to: {path}"))
 }
 
-pub fn enable() -> Result<()> {
+pub fn remove_units() -> Result<()> {
+    fs::remove_file(unit_path!("timer")).wrap_err("Error removing timer")?;
+    fs::remove_file(unit_path!("service")).wrap_err("Error removing service")
+}
+
+fn enable_or_disable(cmd: &str) -> Result<&str> {
     let timer = concat!(env!("CARGO_PKG_NAME"), ".timer");
     let output = Command::new("systemctl")
-        .arg("enable")
+        .arg(cmd)
         .arg("--now")
         .arg(timer)
         .output()
@@ -136,7 +150,17 @@ pub fn enable() -> Result<()> {
         return Err(eyre!("{reason}").wrap_err("Systemctl returned an error"));
     }
 
-    wait_for(timer, true).wrap_err("Timer was not activated")?;
+    Ok(timer)
+}
 
+pub fn enable() -> Result<()> {
+    let timer = enable_or_disable("enable")?;
+    wait_for(timer, true).wrap_err("Timer was not activated")?;
+    Ok(())
+}
+
+pub fn disable() -> Result<()> {
+    let timer = enable_or_disable("disable")?;
+    wait_for(timer, false).wrap_err("Timer was not deactivated")?;
     Ok(())
 }
