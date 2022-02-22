@@ -9,24 +9,22 @@ use eyre::{eyre, Result, WrapErr};
 use crate::util;
 
 #[cfg(target_arch = "arm")]
-pub fn ui_action(operation: &str) -> Result<()> {
-    let output = Command::new("systemctl")
-        .arg(operation)
-        .arg("xochitl")
-        .output()
-        .wrap_err("Could not run systemctl")?;
+pub fn reset_failed() -> Result<()> {
+    systemctl(&["reset-failed"], "xochitl")?;
+    Ok(())
+}
 
-    if !output.status.success() {
-        let reason = String::from_utf8(output.stderr).unwrap();
-        return Err(eyre!("{reason}").wrap_err("Systemctl returned an error"));
-    }
+#[cfg(target_arch = "arm")]
+pub fn ui_action(operation: &'static str) -> Result<()> {
+    let args = [operation];
+    systemctl(&args, "xochitl")?;
 
     let target_activity = match operation {
-        "stop" => true,
-        "start" => false,
+        "start" => true,
+        "stop" => false,
         _ => unreachable!(),
     };
-    wait_for("xochitl", target_activity).wrap_err("action did not complete in time")?;
+    wait_for("xochitl", target_activity).wrap_err("operation did not complete in time")?;
 
     Ok(())
 }
@@ -49,8 +47,8 @@ fn wait_for(service: &str, state: bool) -> Result<()> {
         thread::sleep(Duration::from_millis(50));
     }
     match state {
-        true => Err(eyre!("Time out waiting activation")),
-        false => Err(eyre!("Time out waiting deactivation")),
+        true => Err(eyre!("Time out waiting for activation")),
+        false => Err(eyre!("Time out waiting for deactivation")),
     }
 }
 
@@ -136,31 +134,33 @@ pub fn remove_units() -> Result<()> {
     fs::remove_file(unit_path!("service")).wrap_err("Error removing service")
 }
 
-fn enable_or_disable(cmd: &str) -> Result<&str> {
-    let timer = concat!(env!("CARGO_PKG_NAME"), ".timer");
+fn systemctl(args: &[&'static str], service: &str) -> Result<()> {
     let output = Command::new("systemctl")
-        .arg(cmd)
-        .arg("--now")
-        .arg(timer)
+        .args(args)
+        .arg(service)
         .output()
         .wrap_err("Could not run systemctl")?;
 
     if !output.status.success() {
         let reason = String::from_utf8(output.stderr).unwrap();
-        return Err(eyre!("{reason}").wrap_err("Systemctl returned an error"));
+        Err(eyre!("{reason}").wrap_err("Systemctl returned an error"))
+    } else {
+        Ok(())
     }
+}
 
-    Ok(timer)
+fn timer() -> &'static str {
+    concat!(env!("CARGO_PKG_NAME"), ".timer")
 }
 
 pub fn enable() -> Result<()> {
-    let timer = enable_or_disable("enable")?;
-    wait_for(timer, true).wrap_err("Timer was not activated")?;
+    systemctl(&["enable", "--now"], timer())?;
+    wait_for(timer(), true).wrap_err("Timer was not activated")?;
     Ok(())
 }
 
 pub fn disable() -> Result<()> {
-    let timer = enable_or_disable("disable")?;
-    wait_for(timer, false).wrap_err("Timer was not deactivated")?;
+    systemctl(&["disable", "--now"], timer())?;
+    wait_for(timer(), false).wrap_err("Timer was not deactivated")?;
     Ok(())
 }

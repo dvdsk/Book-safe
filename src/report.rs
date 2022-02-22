@@ -1,13 +1,16 @@
 use color_eyre::Result;
+use color_eyre::eyre::Context;
 use indextree::NodeId;
 use printpdf::*;
-use std::fs::File;
-use std::io::BufWriter;
+use std::fs::{self, File};
+use std::io::{BufWriter, ErrorKind};
+use std::path::Path;
 use time::Time;
 
-use crate::directory::Tree;
+use crate::directory::{Tree, self};
+use crate::util::AcceptErr;
 
-struct Doc {
+pub struct Doc {
     h: Mm,
     w: Mm,
     y: Mm,
@@ -24,7 +27,7 @@ impl Doc {
     fn hline(&mut self) {
         let points = vec![
             (Point::new(self.w_margin, self.y), false),
-            (Point::new(self.w-self.w_margin, self.y), false),
+            (Point::new(self.w - self.w_margin, self.y), false),
         ];
 
         let line = Line {
@@ -108,7 +111,7 @@ impl Doc {
     }
 }
 
-pub fn build(tree: Tree, roots: Vec<NodeId>, unlock: Time) -> PdfDocumentReference {
+pub fn build(tree: Tree, roots: Vec<NodeId>, unlock: Time) -> Doc {
     let (w, h) = (Mm(210.), Mm(297.));
     let (pdf, page, layer1) = PdfDocument::new("Book-locker", w, h, "Layer 1");
     let layer = pdf.get_page(page).get_layer(layer1);
@@ -145,12 +148,77 @@ pub fn build(tree: Tree, roots: Vec<NodeId>, unlock: Time) -> PdfDocumentReferen
         doc.add_text(&subtree);
     }
 
-    doc.pdf
+    doc
 }
 
-pub fn save(pdf: PdfDocumentReference) -> Result<()> {
-    let mut writer = BufWriter::new(File::create("test.pdf")?);
-    pdf.save(&mut writer)?;
+fn metadata() -> String {
+    let unix_ts = time::OffsetDateTime::now_utc().unix_timestamp();
+    format!(
+        "
+{{
+    \"deleted\": false,
+    \"lastModified\": \"{unix_ts}000\",
+    \"lastOpened\": \"0\",
+    \"lastOpenedPage\": 0,
+    \"metadatamodified\": false,
+    \"modified\": false,
+    \"parent\": \"\",
+    \"pinned\": false,
+    \"synced\": true,
+    \"type\": \"DocumentType\",
+    \"version\": 1,
+    \"visibleName\": \"book-locker\"
+}}"
+    )
+}
+
+fn content(pages: usize) -> String {
+    format!(
+        "
+    \"coverPageNumber\": -1,
+    \"documentMetadata\": {{
+    }},
+    \"dummyDocument\": false,
+    \"extraMetadata\": {{    
+    }},
+    \"fileType\": \"pdf\",
+    \"fontName\": \"\",
+    \"lastOpenedPage\": 0,
+    \"lineHeight\": -1,
+    \"margins\": 100,
+    \"orientation\": \"portrait\",
+    \"originalPageCount\": {pages},
+    \"pageCount\": {pages},
+    \"textScale\": 1,
+    \"transform\": {{
+        \"m11\": 1,
+        \"m12\": 0,
+        \"m13\": 0,
+        \"m21\": 0,
+        \"m22\": 1,
+        \"m23\": 0,
+        \"m31\": 0,
+        \"m32\": 0,
+        \"m33\": 1
+    }}"
+    )
+}
+
+const UUID: &str = "213be0f6-17ce-40fb-a34b-e30f13111a12";
+pub fn save(doc: Doc) -> Result<()> {
+    let path = Path::new(directory::DIR).join(UUID);
+    fs::write(path.with_extension("content"), content(doc.n_pages))?;
+    fs::write(path.with_extension("metadata"), metadata())?;
+    fs::write(path.with_file_name("pagedata"), "")?;
+    fs::create_dir(path.with_extension("thumbnails"))
+        .accept_fn(|e| e.kind() == ErrorKind::AlreadyExists && path.with_extension("thumbnails").is_dir())
+        .wrap_err("Failed to create thumbnails dir")?;
+    fs::create_dir(&path)
+        .accept_fn(|e| e.kind() == ErrorKind::AlreadyExists && path.is_dir())
+        .wrap_err("Failed to create UUID dir")?;
+
+    let mut writer = BufWriter::new(File::create(path.with_extension("pdf"))?);
+    doc.pdf.save(&mut writer)?;
     Ok(())
 }
 
@@ -164,9 +232,8 @@ mod test {
     pub fn pdf() -> Result<()> {
         let tree = test_tree();
         let roots = vec![*tree.root(Uuid::from(""))];
-        let pdf = build(tree, roots);
-        let mut writer = BufWriter::new(File::create("test.pdf")?);
-        pdf.save(&mut writer)?;
+        let doc = build(tree, roots, time::Time::from_hms(12, 42, 69).unwrap());
+        save(doc)?;
         Ok(())
     }
 }

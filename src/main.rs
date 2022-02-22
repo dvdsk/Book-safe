@@ -91,6 +91,8 @@ fn move_docs(mut to_lock: Vec<Uuid>) -> Result<()> {
 }
 
 fn unlock() -> Result<()> {
+    #[cfg(target_arch = "arm")]
+    systemd::ui_action("stop").wrap_err("Could not stop gui")?;
     let dir = Path::new(directory::DIR);
     for entry in fs::read_dir(safe_dir())? {
         let entry = entry?;
@@ -98,6 +100,10 @@ fn unlock() -> Result<()> {
         let dest = dir.join(source.file_name().unwrap());
         fs::rename(source, dest)?;
     }
+    #[cfg(target_arch = "arm")]
+    systemd::reset_failed()?;
+    #[cfg(target_arch = "arm")]
+    systemd::ui_action("start").wrap_err("Could not start gui")?;
     Ok(())
 }
 
@@ -161,12 +167,14 @@ fn run(args: Args) -> Result<()> {
     #[cfg(target_arch = "arm")]
     systemd::ui_action("stop").wrap_err("Could not stop gui")?;
     if util::should_lock(now, start, end) {
-        println!("locking folders");
+        println!("system time: {now}, locking folders");
         lock(forbidden, end).wrap_err("Could not lock forbidden folders")?;
     } else {
-        println!("unlocking everything");
+        println!("system time: {now}, unlocking everything");
         unlock().wrap_err("Could not unlock all files")?;
     }
+    #[cfg(target_arch = "arm")]
+    systemd::reset_failed()?;
     #[cfg(target_arch = "arm")]
     systemd::ui_action("start").wrap_err("Could not start gui")?;
 
