@@ -36,6 +36,7 @@ enum Commands {
     Run(Args),
     Install(Args),
     Remove,
+    Unlock,
 }
 
 #[derive(Parser, Debug)]
@@ -144,6 +145,7 @@ fn main() -> Result<()> {
         Commands::Run(args) => run(args).wrap_err("Error while running"),
         Commands::Install(args) => install(args).wrap_err("Error while installing"),
         Commands::Remove => remove().wrap_err("Error while removing"),
+        Commands::Unlock => unlock().wrap_err("Error unlocking files"),
     }
 }
 
