@@ -13,6 +13,7 @@ use util::AcceptErr;
 mod directory;
 mod report;
 mod systemd;
+mod sync;
 mod util;
 
 #[derive(Parser, Debug)]
@@ -100,6 +101,7 @@ fn unlock() -> Result<()> {
         let dest = dir.join(source.file_name().unwrap());
         fs::rename(source, dest)?;
     }
+    sync::unblock().wrap_err("Could not unblock sync")?;
     #[cfg(target_arch = "arm")]
     systemd::reset_failed()?;
     #[cfg(target_arch = "arm")]
@@ -108,6 +110,9 @@ fn unlock() -> Result<()> {
 }
 
 fn lock(mut forbidden: Vec<String>, unlock_at: Time) -> Result<()> {
+    #[cfg(target_arch = "arm")]
+    systemd::ui_action("stop").wrap_err("Could not stop gui")?;
+
     unlock().wrap_err("could not unlock files")?; // ensure nothing is in locked folder
     let (tree, _) = directory::map().wrap_err("Could not build document tree")?;
     let mut to_lock = Vec::new();
@@ -120,9 +125,17 @@ fn lock(mut forbidden: Vec<String>, unlock_at: Time) -> Result<()> {
         let mut files = tree.descendant_files(*node)?;
         to_lock.append(&mut files);
     }
+
+    sync::unblock().wrap_err("Could not block sync")?;
     move_docs(to_lock).wrap_err("Could not move book data")?;
     let pdf = report::build(tree, roots, unlock_at);
     report::save(pdf).wrap_err("Could not save generated report")?;
+
+    sync::block().wrap_err("Could not block sync")?;
+    #[cfg(target_arch = "arm")]
+    systemd::reset_failed()?;
+    #[cfg(target_arch = "arm")]
+    systemd::ui_action("start").wrap_err("Could not start gui")?;
 
     Ok(())
 }
@@ -164,8 +177,6 @@ fn run(args: Args) -> Result<()> {
 
     let forbidden = without_overlapping(args.lock);
 
-    #[cfg(target_arch = "arm")]
-    systemd::ui_action("stop").wrap_err("Could not stop gui")?;
     if util::should_lock(now, start, end) {
         println!("system time: {now}, locking folders");
         lock(forbidden, end).wrap_err("Could not lock forbidden folders")?;
@@ -173,10 +184,6 @@ fn run(args: Args) -> Result<()> {
         println!("system time: {now}, unlocking everything");
         unlock().wrap_err("Could not unlock all files")?;
     }
-    #[cfg(target_arch = "arm")]
-    systemd::reset_failed()?;
-    #[cfg(target_arch = "arm")]
-    systemd::ui_action("start").wrap_err("Could not start gui")?;
 
     Ok(())
 }
