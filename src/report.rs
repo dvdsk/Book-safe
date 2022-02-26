@@ -175,7 +175,7 @@ fn metadata() -> String {
 fn content(pages: usize) -> String {
     format!(
         "
-    \"coverPageNumber\": -1,
+    \"coverPageNumber\": 0,
     \"documentMetadata\": {{
     }},
     \"dummyDocument\": false,

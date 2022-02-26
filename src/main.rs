@@ -91,9 +91,7 @@ fn move_docs(mut to_lock: Vec<Uuid>) -> Result<()> {
     Ok(())
 }
 
-fn unlock() -> Result<()> {
-    #[cfg(target_arch = "arm")]
-    systemd::ui_action("stop").wrap_err("Could not stop gui")?;
+fn unlock_files() -> Result<()> {
     let dir = Path::new(directory::DIR);
     for entry in fs::read_dir(safe_dir())? {
         let entry = entry?;
@@ -101,6 +99,14 @@ fn unlock() -> Result<()> {
         let dest = dir.join(source.file_name().unwrap());
         fs::rename(source, dest)?;
     }
+    Ok(())
+}
+
+fn unlock() -> Result<()> {
+    #[cfg(target_arch = "arm")]
+    systemd::ui_action("stop").wrap_err("Could not stop gui")?;
+    unlock_files()?;
+
     sync::unblock().wrap_err("Could not unblock sync")?;
     #[cfg(target_arch = "arm")]
     systemd::reset_failed()?;
@@ -113,7 +119,7 @@ fn lock(mut forbidden: Vec<String>, unlock_at: Time) -> Result<()> {
     #[cfg(target_arch = "arm")]
     systemd::ui_action("stop").wrap_err("Could not stop gui")?;
 
-    unlock().wrap_err("could not unlock files")?; // ensure nothing is in locked folder
+    unlock_files().wrap_err("could not unlock files")?; // ensure nothing is in locked folder
     let (tree, _) = directory::map().wrap_err("Could not build document tree")?;
     let mut to_lock = Vec::new();
 
@@ -125,8 +131,6 @@ fn lock(mut forbidden: Vec<String>, unlock_at: Time) -> Result<()> {
         let mut files = tree.descendant_files(*node)?;
         to_lock.append(&mut files);
     }
-
-    sync::unblock().wrap_err("Could not block sync")?;
     move_docs(to_lock).wrap_err("Could not move book data")?;
     let pdf = report::build(tree, roots, unlock_at);
     report::save(pdf).wrap_err("Could not save generated report")?;
