@@ -158,8 +158,6 @@ fn metadata() -> String {
 {{
     \"deleted\": false,
     \"lastModified\": \"{unix_ts}000\",
-    \"lastOpened\": \"0\",
-    \"lastOpenedPage\": 0,
     \"metadatamodified\": false,
     \"modified\": false,
     \"parent\": \"\",
@@ -167,7 +165,7 @@ fn metadata() -> String {
     \"synced\": true,
     \"type\": \"DocumentType\",
     \"version\": 1,
-    \"visibleName\": \"book-locker\"
+    \"visibleName\": \"booklocker\"
 }}"
     )
 }
@@ -175,10 +173,6 @@ fn metadata() -> String {
 fn content(pages: usize) -> String {
     format!(
         "
-    \"coverPageNumber\": 0,
-    \"documentMetadata\": {{
-    }},
-    \"dummyDocument\": false,
     \"extraMetadata\": {{    
     }},
     \"fileType\": \"pdf\",
@@ -187,8 +181,9 @@ fn content(pages: usize) -> String {
     \"lineHeight\": -1,
     \"margins\": 100,
     \"orientation\": \"portrait\",
-    \"originalPageCount\": {pages},
     \"pageCount\": {pages},
+    \"pages\": [
+    ],
     \"textScale\": 1,
     \"transform\": {{
         \"m11\": 1,
@@ -204,18 +199,17 @@ fn content(pages: usize) -> String {
     )
 }
 
-const UUID: &str = "213be0f6-17ce-40fb-a34b-e30f13111a12";
+const UUID: &str = "d89b6643-89ea-45e8-8eee-581c445d4830";
 pub fn save(doc: Doc) -> Result<()> {
     let path = Path::new(directory::DIR).join(UUID);
     fs::write(path.with_extension("content"), content(doc.n_pages))?;
     fs::write(path.with_extension("metadata"), metadata())?;
     fs::write(path.with_file_name("pagedata"), "")?;
-    fs::create_dir(path.with_extension("thumbnails"))
-        .accept_fn(|e| e.kind() == ErrorKind::AlreadyExists && path.with_extension("thumbnails").is_dir())
-        .wrap_err("Failed to create thumbnails dir")?;
-    fs::create_dir(&path)
-        .accept_fn(|e| e.kind() == ErrorKind::AlreadyExists && path.is_dir())
-        .wrap_err("Failed to create UUID dir")?;
+    for dir_ext in &["", "cache", "highlights", "thumbnails", "textconversion"] {
+    fs::create_dir(path.with_extension(dir_ext))
+        .accept_fn(|e| e.kind() == ErrorKind::AlreadyExists && path.with_extension(dir_ext).is_dir())
+        .wrap_err_with(|| format!("Failed to create {dir_ext} dir"))?;
+    }
 
     let mut writer = BufWriter::new(File::create(path.with_extension("pdf"))?);
     doc.pdf.save(&mut writer)?;

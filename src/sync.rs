@@ -4,13 +4,14 @@ use color_eyre::{
 };
 use std::{process::{Command, Output}, collections::HashSet};
 
-fn handle_error(output: Output, text: &'static str) -> Result<()> {
+fn handle_error(output: Output, address: &str, text: &'static str) -> Result<()> {
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
         Err(eyre!(text)
             .with_section(move || stdout.trim().to_string().header("Stdout:"))
-            .with_section(move || stderr.trim().to_string().header("Stderr:")))
+            .with_section(move || stderr.trim().to_string().header("Stderr:"))
+            .with_section(move || format!("adress: {address}")))
     } else {
         Ok(())
     }
@@ -24,7 +25,7 @@ fn block_route(address: &str) -> Result<()> {
         .arg("reject")
         .output()
         .wrap_err("Could not run route")?;
-    handle_error(output, "Command route add returned an error")
+    handle_error(output, address, "Command route add returned an error")
 }
 
 fn unblock_route(address: &str) -> Result<()> {
@@ -35,7 +36,7 @@ fn unblock_route(address: &str) -> Result<()> {
         .arg("reject")
         .output()
         .wrap_err("Could not run route")?;
-    handle_error(output, "Command route delete returned an error")
+    handle_error(output, address, "Command route delete returned an error")
 }
 
 fn parse_routes() -> Result<HashSet<String>> {
@@ -52,12 +53,11 @@ fn parse_routes() -> Result<HashSet<String>> {
         .collect();
     Ok(routes)
 }
-
 // TODO auto generate from routes remarkable has open
 const ROUTES: [&'static str; 3] = [
     "206.137.117.34",
     "117.147.117.34",
-    "ams16s32-in-f20.1e100.net",
+    "172.217.168.212",
 ];
 
 pub fn block() -> Result<()> {
