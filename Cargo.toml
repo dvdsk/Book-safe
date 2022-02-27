@@ -11,6 +11,7 @@ color-eyre = "0.6"
 indextree = "4.3"
 time = { version = "0.3", features = ["local-offset"] }
 printpdf = "0.5"
+trust-dns-resolver = "0.21.0"
 
 # optimize any non workspace member for debug builds
 # since we will not rebuild them often and a smaller binary 
