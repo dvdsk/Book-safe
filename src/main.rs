@@ -18,8 +18,8 @@ mod util;
 
 #[derive(Parser, Debug)]
 pub struct Args {
-    /// name of a folder to be locked, argument can be passed
-    /// multiple times with diffrent folders
+    /// path of a folder to be locked as seen in the ui,
+    /// pass multiple times to block multiple folders
     #[clap(short, long)]
     lock: Vec<String>,
 
@@ -34,14 +34,26 @@ pub struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Lock or unlock right now depending on the time
     Run(Args),
+    /// Create and enable book-safe system service, locking and unlocking
+    /// at those times. This command requires additional arguments call
+    /// with run --help to see them
     Install(Args),
-    Remove,
+    /// Remove book-safe service and unlock all files. This command
+    /// requires additional arguments call with run --help to see them
+    Uninstall,
+    /// Unlock all files
     Unlock,
 }
 
 #[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
+#[clap(
+    author,
+    version,
+    about,
+    long_about = "Hides the content of one or more folders from the remarkable ui between a given time period and adds a pdf listing what has been blocked. Cloud sync is disabled while folders are blocked. It can be ran manually with Run and Unlock or set up to trigger at given times using Install."
+)]
 struct Cli {
     #[clap(subcommand)]
     command: Commands,
@@ -166,7 +178,7 @@ fn main() -> Result<()> {
     match cli.command {
         Commands::Run(args) => run(args).wrap_err("Error while running"),
         Commands::Install(args) => install(args).wrap_err("Error while installing"),
-        Commands::Remove => remove().wrap_err("Error while removing"),
+        Commands::Uninstall => remove().wrap_err("Error while removing"),
         Commands::Unlock => unlock().wrap_err("Error unlocking files"),
     }?;
     systemd::reset_failed()?;

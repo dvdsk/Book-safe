@@ -8,7 +8,7 @@ set -e
 
 SERVER_ADDR="remarkable"
 SERVER_USER="root"
-SERVER_DIR="/home/$SERVER_USER/locker"
+SERVER_DIR="/home/$SERVER_USER/safe"
 
 dir=debug
 if [ "$1" = "--release" ]; then
@@ -22,8 +22,8 @@ rsync -vh --progress \
 
 cmds="
 mkdir -p $SERVER_DIR
-mv /tmp/book-lock $SERVER_DIR/book-lock
-chown $SERVER_USER:$SERVER_USER $SERVER_DIR/book-lock
+mv /tmp/book-safe $SERVER_DIR/book-safe
+chown $SERVER_USER:$SERVER_USER $SERVER_DIR/book-safe
 "
 
 ssh -t $SERVER_ADDR "$cmds"
