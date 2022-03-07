@@ -199,14 +199,10 @@ fn content(pages: usize) -> String {
     )
 }
 
+const REPORT_UUID: &str = "64a3befb-b815-47e8-bf74-996bb6a76a5d";
 pub fn save(doc: Doc) -> Result<()> {
-    use uuid::Uuid;
-    let uuid_str = Uuid::new_v4()
-        .to_hyphenated()
-        .encode_lower(&mut Uuid::encode_buffer())
-        .to_string();
-    log::info!("report uuid: {uuid_str}");
-    let path = Path::new(directory::DIR).join(uuid_str);
+    log::info!("report uuid: {REPORT_UUID} (constant)");
+    let path = Path::new(directory::DIR).join(REPORT_UUID);
 
     fs::write(path.with_extension("content"), content(doc.n_pages))?;
     fs::write(path.with_extension("metadata"), metadata())?;
@@ -222,6 +218,24 @@ pub fn save(doc: Doc) -> Result<()> {
     let mut writer = BufWriter::new(File::create(path.with_extension("pdf"))?);
     doc.pdf.save(&mut writer)?;
     log::info!("added report on locked files (pdf)");
+    Ok(())
+}
+
+pub fn remove() -> Result<()> {
+    let path = Path::new(directory::DIR).join(REPORT_UUID);
+    assert!(!REPORT_UUID.is_empty(), "report uuid is empty str");
+
+    if !path.join("textconversions").is_dir() {
+        log::warn!("no lock report to remove: first run or report is corrupted")
+    }
+
+    fs::remove_file(path.with_extension("content"))?;
+    fs::remove_file(path.with_extension("metadata"))?;
+    fs::remove_file(path.with_file_name("pagedata"))?;
+    for dir_ext in &["", "cache", "highlights", "thumbnails", "textconversion"] {
+        fs::remove_dir_all(path.with_extension(dir_ext))
+            .wrap_err_with(|| format!("Failed to remove {dir_ext} dir"))?;
+    }
     Ok(())
 }
 

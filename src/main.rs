@@ -104,7 +104,7 @@ fn unlock_files() -> Result<()> {
 
 fn unlock() -> Result<()> {
     unlock_files()?;
-
+    report::remove().wrap_err("Could not remove locked files report")?;
     sync::unblock().wrap_err("Could not unblock sync")?;
     Ok(())
 }
@@ -124,7 +124,7 @@ fn lock(mut forbidden: Vec<String>, unlock_at: Time) -> Result<()> {
         to_lock.append(&mut files);
     }
     let pdf = report::build(tree, roots, unlock_at);
-    report::save(pdf).wrap_err("Could not save generated report")?;
+    report::save(pdf).wrap_err("Could not save locked files report")?;
 
     sync::block().wrap_err("Could not block sync")?;
     move_docs(to_lock).wrap_err("Could not move book data")?;
