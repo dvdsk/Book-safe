@@ -8,7 +8,7 @@ use std::{
     process::{Command, Output},
 };
 
-fn handle_error(output: Output, address: IpAddr, text: &'static str) -> Result<()> {
+fn handle_any_error(output: Output, address: IpAddr, text: &'static str) -> Result<()> {
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -29,7 +29,7 @@ fn block_route(address: IpAddr) -> Result<()> {
         .arg("reject")
         .output()
         .wrap_err("Could not run route")?;
-    handle_error(output, address, "Command route add returned an error")
+    handle_any_error(output, address, "Command route add returned an error")
 }
 
 fn unblock_route(address: IpAddr) -> Result<()> {
@@ -40,7 +40,7 @@ fn unblock_route(address: IpAddr) -> Result<()> {
         .arg("reject")
         .output()
         .wrap_err("Could not run route")?;
-    handle_error(output, address, "Command route delete returned an error")
+    handle_any_error(output, address, "Command route delete returned an error")
 }
 
 fn parse_routes() -> Result<HashSet<IpAddr>> {
@@ -60,13 +60,16 @@ fn parse_routes() -> Result<HashSet<IpAddr>> {
     routes.wrap_err("Could not parse routing table entries")
 }
 
-const SYNC_BACKENDS: [&str; 6] = [
+const SYNC_BACKENDS: [&str; 9] = [
     "hwr-production-dot-remarkable-production.appspot.com",
     "service-manager-production-dot-remarkable-production.appspot.com",
     "local.appspot.com",
     "my.remarkable.com",
     "ping.remarkable.com",
     "internal.cloud.remarkable.com",
+    "ams15s41-in-f20.1e100.net",
+    "ams15s48-in-f20.1e100.net",
+    "206.137.117.34.bc.googleusercontent.com",
 ];
 
 fn routes() -> Vec<IpAddr> {
@@ -75,13 +78,15 @@ fn routes() -> Vec<IpAddr> {
 
     let resolver = Resolver::new(ResolverConfig::default(), ResolverOpts::default()).unwrap();
 
-    SYNC_BACKENDS
+    let mut res: Vec<_> = SYNC_BACKENDS
         .into_iter()
         .map(|domain| resolver.lookup_ip(domain))
         .filter_map(Result::ok)
         .map(|r| r.into_iter())
         .flatten()
-        .collect()
+        .collect();
+    res.dedup();
+    res
 }
 
 pub fn block() -> Result<()> {
@@ -100,6 +105,7 @@ pub fn block() -> Result<()> {
 
         block_route(addr)?;
     }
+    log::info!("blocking sync");
     Ok(())
 }
 
@@ -110,5 +116,6 @@ pub fn unblock() -> Result<()> {
             unblock_route(addr)?;
         }
     }
+    log::info!("unblocking sync");
     Ok(())
 }
