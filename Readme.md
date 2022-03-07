@@ -1,5 +1,5 @@
 I often "forget" the time when reading a great book. In the past there was nothing that could be
-done about that. In the time of ereaders however, we can. _Book safe_ hides the content of one or more folders from the remarkable ui between a given time period and and adds a pdf listing what has been blocked. While folders are blocked the cloud sync is disabled.
+done about that. In the time of ereaders however, we can. _Book safe_ hides the content of one or more folders from the remarkable ui between a given time period and adds a pdf listing what has been blocked. While folders are blocked the cloud sync is disabled.
 
 #### Usage
 Ssh into the remarkable and then binary with a subcommands are:
