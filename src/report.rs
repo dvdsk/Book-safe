@@ -164,7 +164,7 @@ fn metadata() -> String {
     \"synced\": true,
     \"type\": \"DocumentType\",
     \"version\": 1,
-    \"visibleName\": \"booklocker2\"
+    \"visibleName\": \"Locked Books\"
 }}"
     )
 }
@@ -224,17 +224,21 @@ pub fn save(doc: Doc) -> Result<()> {
 pub fn remove() -> Result<()> {
     let path = Path::new(directory::DIR).join(REPORT_UUID);
     assert!(!REPORT_UUID.is_empty(), "report uuid is empty str");
+    let files = ["content", "metadata", "pagedata", "pdf"];
+    let dirs = ["", "cache", "highlights", "thumbnails", "textconversion"];
 
-    if !path.join("textconversions").is_dir() {
-        log::warn!("no lock report to remove: first run or report is corrupted");
+    // check for the last dir we remove, if its not here neither will
+    // the other files be so nothing can be removed
+    if !path.with_extension(dirs.last().unwrap()).is_dir() {
+        log::warn!("no lock report to remove: was not locked or report got corrupted");
         return Ok(());
     }
 
-    for file_ext in &["content", "metadata", "pagedata", "pdf"] {
+    for file_ext in &files {
         fs::remove_file(path.with_extension(file_ext))
             .wrap_err_with(|| format!("Failed to remove file: {file_ext}"))?;
     }
-    for dir_ext in &["", "cache", "highlights", "thumbnails", "textconversion"] {
+    for dir_ext in &dirs {
         fs::remove_dir_all(path.with_extension(dir_ext))
             .wrap_err_with(|| format!("Failed to remove dir: {dir_ext}"))?;
     }
