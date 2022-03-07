@@ -1,5 +1,5 @@
-use color_eyre::Result;
 use color_eyre::eyre::Context;
+use color_eyre::Result;
 use indextree::NodeId;
 use printpdf::*;
 use std::fs::{self, File};
@@ -7,7 +7,7 @@ use std::io::{BufWriter, ErrorKind};
 use std::path::Path;
 use time::Time;
 
-use crate::directory::{Tree, self};
+use crate::directory::{self, Tree};
 use crate::util::AcceptErr;
 
 pub struct Doc {
@@ -154,8 +154,7 @@ pub fn build(tree: Tree, roots: Vec<NodeId>, unlock: Time) -> Doc {
 fn metadata() -> String {
     let unix_ts = time::OffsetDateTime::now_utc().unix_timestamp();
     format!(
-        "
-{{
+        "{{
     \"deleted\": false,
     \"lastModified\": \"{unix_ts}000\",
     \"metadatamodified\": false,
@@ -165,14 +164,14 @@ fn metadata() -> String {
     \"synced\": true,
     \"type\": \"DocumentType\",
     \"version\": 1,
-    \"visibleName\": \"booklocker\"
+    \"visibleName\": \"booklocker2\"
 }}"
     )
 }
 
 fn content(pages: usize) -> String {
     format!(
-        "
+        "{{
     \"extraMetadata\": {{    
     }},
     \"fileType\": \"pdf\",
@@ -181,7 +180,7 @@ fn content(pages: usize) -> String {
     \"lineHeight\": -1,
     \"margins\": 100,
     \"orientation\": \"portrait\",
-    \"pageCount\": {pages},
+    \"pageCount\": 1,
     \"pages\": [
     ],
     \"textScale\": 1,
@@ -195,24 +194,34 @@ fn content(pages: usize) -> String {
         \"m31\": 0,
         \"m32\": 0,
         \"m33\": 1
-    }}"
+    }}
+}}"
     )
 }
 
-const UUID: &str = "d89b6643-89ea-45e8-8eee-581c445d4830";
 pub fn save(doc: Doc) -> Result<()> {
-    let path = Path::new(directory::DIR).join(UUID);
+    use uuid::Uuid;
+    let uuid_str = Uuid::new_v4()
+        .to_hyphenated()
+        .encode_lower(&mut Uuid::encode_buffer())
+        .to_string();
+    log::info!("report uuid: {uuid_str}");
+    let path = Path::new(directory::DIR).join(uuid_str);
+
     fs::write(path.with_extension("content"), content(doc.n_pages))?;
     fs::write(path.with_extension("metadata"), metadata())?;
     fs::write(path.with_file_name("pagedata"), "")?;
     for dir_ext in &["", "cache", "highlights", "thumbnails", "textconversion"] {
-    fs::create_dir(path.with_extension(dir_ext))
-        .accept_fn(|e| e.kind() == ErrorKind::AlreadyExists && path.with_extension(dir_ext).is_dir())
-        .wrap_err_with(|| format!("Failed to create {dir_ext} dir"))?;
+        fs::create_dir(path.with_extension(dir_ext))
+            .accept_fn(|e| {
+                e.kind() == ErrorKind::AlreadyExists && path.with_extension(dir_ext).is_dir()
+            })
+            .wrap_err_with(|| format!("Failed to create {dir_ext} dir"))?;
     }
 
     let mut writer = BufWriter::new(File::create(path.with_extension("pdf"))?);
     doc.pdf.save(&mut writer)?;
+    log::info!("added report on locked files (pdf)");
     Ok(())
 }
 
