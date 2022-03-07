@@ -180,7 +180,7 @@ fn content(pages: usize) -> String {
     \"lineHeight\": -1,
     \"margins\": 100,
     \"orientation\": \"portrait\",
-    \"pageCount\": 1,
+    \"pageCount\": {pages},
     \"pages\": [
     ],
     \"textScale\": 1,
@@ -235,7 +235,7 @@ mod test {
     pub fn pdf() -> Result<()> {
         let tree = test_tree();
         let roots = vec![*tree.root(Uuid::from(""))];
-        let doc = build(tree, roots, time::Time::from_hms(12, 42, 69).unwrap());
+        let doc = build(tree, roots, time::Time::from_hms(12, 42, 59).unwrap());
         save(doc)?;
         Ok(())
     }

@@ -124,7 +124,7 @@ impl Tree {
 
     pub fn subtree(&self, node: NodeId) -> SubTree {
         SubTree {
-            tree: &self,
+            tree: self,
             path: self.path(&node),
             root: node,
         }
@@ -144,7 +144,7 @@ impl Tree {
         }
         if let Some(files) = self.files.get(&node) {
             let mut names: Vec<&str> = files.iter().map(|f| f.name.as_str()).collect();
-            names.sort();
+            names.sort_unstable();
             for name in names {
                 writeln!(f, "{ident_str}    |-- {name}")?;
             }
@@ -332,7 +332,7 @@ pub mod test {
         assert_eq!("", root_name);
 
         let print = format!("{tree}");
-        let correct = r###"    
+        let correct = r###"
     |-- a0
     |-- b0
     |-- A0

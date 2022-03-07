@@ -8,22 +8,36 @@ use eyre::{eyre, Result, WrapErr};
 
 use crate::util;
 
+#[cfg(not(target_arch = "arm"))]
+pub fn reset_failed() -> Result<()> {
+    Ok(())
+}
 #[cfg(target_arch = "arm")]
 pub fn reset_failed() -> Result<()> {
     systemctl(&["reset-failed"], "xochitl")?;
     Ok(())
 }
 
+#[cfg(not(target_arch = "arm"))]
+pub fn ui_action(_operation: &'static str) -> Result<()> {
+    Ok(())
+}
 #[cfg(target_arch = "arm")]
 pub fn ui_action(operation: &'static str) -> Result<()> {
-    let args = [operation];
-    systemctl(&args, "xochitl")?;
+    systemctl(&[operation], "xochitl")?;
 
     let target_activity = match operation {
-        "start" => true,
-        "stop" => false,
+        "start" => {
+            log::info!("starting ui");
+            true
+        }
+        "stop" => {
+            log::info!("stopping ui");
+            false
+        }
         _ => unreachable!(),
     };
+    #[cfg(target_arch = "arm")]
     wait_for("xochitl", target_activity).wrap_err("operation did not complete in time")?;
 
     Ok(())

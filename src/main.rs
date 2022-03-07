@@ -12,8 +12,8 @@ use util::AcceptErr;
 
 mod directory;
 mod report;
-mod systemd;
 mod sync;
+mod systemd;
 mod util;
 
 #[derive(Parser, Debug)]
@@ -103,23 +103,15 @@ fn unlock_files() -> Result<()> {
 }
 
 fn unlock() -> Result<()> {
-    #[cfg(target_arch = "arm")]
-    systemd::ui_action("stop").wrap_err("Could not stop gui")?;
     unlock_files()?;
 
     sync::unblock().wrap_err("Could not unblock sync")?;
-    #[cfg(target_arch = "arm")]
-    systemd::reset_failed()?;
-    #[cfg(target_arch = "arm")]
-    systemd::ui_action("start").wrap_err("Could not start gui")?;
     Ok(())
 }
 
 fn lock(mut forbidden: Vec<String>, unlock_at: Time) -> Result<()> {
-    #[cfg(target_arch = "arm")]
-    systemd::ui_action("stop").wrap_err("Could not stop gui")?;
-
     unlock_files().wrap_err("could not unlock files")?; // ensure nothing is in locked folder
+
     let (tree, _) = directory::map().wrap_err("Could not build document tree")?;
     let mut to_lock = Vec::new();
 
@@ -131,15 +123,11 @@ fn lock(mut forbidden: Vec<String>, unlock_at: Time) -> Result<()> {
         let mut files = tree.descendant_files(*node)?;
         to_lock.append(&mut files);
     }
-    move_docs(to_lock).wrap_err("Could not move book data")?;
     let pdf = report::build(tree, roots, unlock_at);
     report::save(pdf).wrap_err("Could not save generated report")?;
 
     sync::block().wrap_err("Could not block sync")?;
-    #[cfg(target_arch = "arm")]
-    systemd::reset_failed()?;
-    #[cfg(target_arch = "arm")]
-    systemd::ui_action("start").wrap_err("Could not start gui")?;
+    move_docs(to_lock).wrap_err("Could not move book data")?;
 
     Ok(())
 }
@@ -161,15 +149,28 @@ fn without_overlapping(mut list: Vec<String>) -> Vec<String> {
 // Uninstall removes a systemd unit file and unloads it
 fn main() -> Result<()> {
     color_eyre::install()?;
+
+    use simplelog::{ColorChoice, Config, LevelFilter, TermLogger, TerminalMode};
+    TermLogger::init(
+        LevelFilter::Info,
+        Config::default(),
+        TerminalMode::Mixed,
+        ColorChoice::Auto,
+    )
+    .unwrap();
+
     let cli = Cli::parse();
 
     ensure_safe_dir()?;
+    systemd::ui_action("stop").wrap_err("Could not stop gui")?;
     match cli.command {
         Commands::Run(args) => run(args).wrap_err("Error while running"),
         Commands::Install(args) => install(args).wrap_err("Error while installing"),
         Commands::Remove => remove().wrap_err("Error while removing"),
         Commands::Unlock => unlock().wrap_err("Error unlocking files"),
-    }
+    }?;
+    systemd::reset_failed()?;
+    systemd::ui_action("start").wrap_err("Could not start gui")
 }
 
 fn run(args: Args) -> Result<()> {
@@ -178,14 +179,15 @@ fn run(args: Args) -> Result<()> {
     let now = OffsetDateTime::now_local()
         .wrap_err("Could not get time")?
         .time();
+    log::info!("system time: {now}");
 
     let forbidden = without_overlapping(args.lock);
 
     if util::should_lock(now, start, end) {
-        println!("system time: {now}, locking folders");
+        log::info!("locking folders");
         lock(forbidden, end).wrap_err("Could not lock forbidden folders")?;
     } else {
-        println!("system time: {now}, unlocking everything");
+        log::info!("unlocking everything");
         unlock().wrap_err("Could not unlock all files")?;
     }
 
