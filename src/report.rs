@@ -206,7 +206,7 @@ pub fn save(doc: Doc) -> Result<()> {
 
     fs::write(path.with_extension("content"), content(doc.n_pages))?;
     fs::write(path.with_extension("metadata"), metadata())?;
-    fs::write(path.with_file_name("pagedata"), "")?;
+    fs::write(path.with_extension("pagedata"), "")?;
     for dir_ext in &["", "cache", "highlights", "thumbnails", "textconversion"] {
         fs::create_dir(path.with_extension(dir_ext))
             .accept_fn(|e| {
@@ -226,15 +226,17 @@ pub fn remove() -> Result<()> {
     assert!(!REPORT_UUID.is_empty(), "report uuid is empty str");
 
     if !path.join("textconversions").is_dir() {
-        log::warn!("no lock report to remove: first run or report is corrupted")
+        log::warn!("no lock report to remove: first run or report is corrupted");
+        return Ok(());
     }
 
-    fs::remove_file(path.with_extension("content"))?;
-    fs::remove_file(path.with_extension("metadata"))?;
-    fs::remove_file(path.with_file_name("pagedata"))?;
+    for file_ext in &["content", "metadata", "pagedata", "pdf"] {
+        fs::remove_file(path.with_extension(file_ext))
+            .wrap_err_with(|| format!("Failed to remove file: {file_ext}"))?;
+    }
     for dir_ext in &["", "cache", "highlights", "thumbnails", "textconversion"] {
         fs::remove_dir_all(path.with_extension(dir_ext))
-            .wrap_err_with(|| format!("Failed to remove {dir_ext} dir"))?;
+            .wrap_err_with(|| format!("Failed to remove dir: {dir_ext}"))?;
     }
     Ok(())
 }

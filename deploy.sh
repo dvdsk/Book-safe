@@ -8,7 +8,7 @@ set -e
 
 SERVER_ADDR="remarkable"
 SERVER_USER="root"
-SERVER_DIR="/home/$SERVER_USER/safe"
+SERVER_DIR="/home/$SERVER_USER/book-safe"
 
 dir=debug
 if [ "$1" = "--release" ]; then
@@ -17,7 +17,7 @@ fi
 
 cross build --target=armv7-unknown-linux-gnueabihf $1
 rsync -vh --progress \
-  target/armv7-unknown-linux-gnueabihf/$dir/book-lock \
+  target/armv7-unknown-linux-gnueabihf/$dir/book-safe \
   $SERVER_ADDR:/tmp/
 
 cmds="

@@ -85,11 +85,13 @@ fn routes() -> Vec<IpAddr> {
         .map(|r| r.into_iter())
         .flatten()
         .collect();
+    res.sort_unstable();
     res.dedup();
     res
 }
 
 pub fn block() -> Result<()> {
+    log::info!("blocking sync");
     let existing = parse_routes().wrap_err("Error parsing routing table")?;
     for addr in routes() {
         if existing.contains(&addr) {
@@ -105,17 +107,16 @@ pub fn block() -> Result<()> {
 
         block_route(addr)?;
     }
-    log::info!("blocking sync");
     Ok(())
 }
 
 pub fn unblock() -> Result<()> {
+    log::info!("unblocking sync");
     let existing = parse_routes().wrap_err("Error parsing routing table")?;
     for addr in routes() {
         if existing.contains(&addr) {
             unblock_route(addr)?;
         }
     }
-    log::info!("unblocking sync");
     Ok(())
 }
