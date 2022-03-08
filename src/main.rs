@@ -210,7 +210,6 @@ fn install(args: Args) -> Result<()> {
     systemd::write_service(&args).wrap_err("Error creating service")?;
     systemd::write_timer(&args).wrap_err("Error creating timer")?;
     systemd::enable().wrap_err("Error enabling service timer")?;
-    unlock().wrap_err("Error unlocking any locked documents")?;
     run(args).wrap_err("Failed first run after install")
 }
 
