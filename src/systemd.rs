@@ -77,7 +77,7 @@ fn service_str(_args: &crate::Args) -> Result<String> {
     let working_dir = path.parent().unwrap().to_str().unwrap();
     let bin_path = path.to_str().unwrap();
     let args: String = std::env::args()
-        .skip(1)
+        .skip(2)
         .map(|mut s| {
             s.push(' ');
             s
