@@ -5,6 +5,7 @@ use std::path::Path;
 use clap::{Parser, Subcommand};
 use color_eyre::eyre;
 use eyre::{Result, WrapErr};
+use simplelog::ConfigBuilder;
 use time::{OffsetDateTime, Time};
 
 use directory::Uuid;
@@ -57,6 +58,10 @@ enum Commands {
 struct Cli {
     #[clap(subcommand)]
     command: Commands,
+    /// log verbosity, used for debugging,
+    /// options: trace, debug, info, warn, error
+    #[clap(short, long, default_value = "info")]
+    log: simplelog::Level,
 }
 
 fn move_doc(uuid: Uuid) -> Result<()> {
@@ -161,17 +166,20 @@ fn without_overlapping(mut list: Vec<String>) -> Vec<String> {
 // Uninstall removes a systemd unit file and unloads it
 fn main() -> Result<()> {
     color_eyre::install()?;
+    let cli = Cli::parse();
 
-    use simplelog::{ColorChoice, Config, LevelFilter, TermLogger, TerminalMode};
+    use simplelog::{ColorChoice, TermLogger, TerminalMode};
+    let config = ConfigBuilder::new()
+        .add_filter_ignore_str("trust_dns_resolver")
+        .add_filter_ignore_str("trust_dns_proto")
+        .build();
     TermLogger::init(
-        LevelFilter::Info,
-        Config::default(),
+        cli.log.to_level_filter(),
+        config,
         TerminalMode::Mixed,
         ColorChoice::Auto,
     )
     .unwrap();
-
-    let cli = Cli::parse();
 
     ensure_safe_dir()?;
     systemd::ui_action("stop").wrap_err("Could not stop gui")?;

@@ -22,6 +22,7 @@ fn handle_any_error(output: Output, address: IpAddr, text: &'static str) -> Resu
 }
 
 fn block_route(address: IpAddr) -> Result<()> {
+    log::debug!("blocking: {address}");
     let output = Command::new("route")
         .arg("add")
         .arg("-host")
@@ -33,6 +34,7 @@ fn block_route(address: IpAddr) -> Result<()> {
 }
 
 fn unblock_route(address: IpAddr) -> Result<()> {
+    log::debug!("unblocking: {address}");
     let output = Command::new("route")
         .arg("delete")
         .arg("-host")
@@ -57,6 +59,7 @@ fn parse_routes() -> Result<HashSet<IpAddr>> {
         .map(|f| f.split_once(" ").unwrap().0)
         .map(IpAddr::from_str)
         .collect();
+    log::debug!("parsed routes: {routes:?}");
     routes.wrap_err("Could not parse routing table entries")
 }
 
@@ -87,6 +90,7 @@ fn routes() -> Vec<IpAddr> {
         .collect();
     res.sort_unstable();
     res.dedup();
+    log::debug!("sync routes: {res:?}");
     res
 }
 
