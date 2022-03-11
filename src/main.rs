@@ -215,7 +215,7 @@ fn run(args: Args) -> Result<()> {
 }
 
 fn install(args: Args) -> Result<()> {
-    systemd::write_service(&args).wrap_err("Error creating service")?;
+    systemd::write_service().wrap_err("Error creating service")?;
     systemd::write_timer(&args).wrap_err("Error creating timer")?;
     systemd::enable().wrap_err("Error enabling service timer")?;
     run(args).wrap_err("Failed first run after install")

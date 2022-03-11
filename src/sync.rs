@@ -2,11 +2,13 @@ use color_eyre::{
     eyre::{eyre, WrapErr},
     Result, Section, SectionExt,
 };
+use itertools::{Either, Itertools};
 use std::{
     collections::HashSet,
     net::IpAddr,
-    process::{Command, Output},
+    process::{Command, Output}, fs, io, str::FromStr,
 };
+use trust_dns_resolver::error::{ResolveError, ResolveErrorKind};
 
 fn handle_any_error(output: Output, address: IpAddr, text: &'static str) -> Result<()> {
     if !output.status.success() {
@@ -51,7 +53,6 @@ fn parse_routes() -> Result<HashSet<IpAddr>> {
         .output()
         .wrap_err("Could not run route")?;
 
-    use std::str::FromStr;
     let output = String::from_utf8_lossy(&output.stdout);
     let routes: Result<HashSet<IpAddr>, _> = output
         .lines()
@@ -75,29 +76,61 @@ const SYNC_BACKENDS: [&str; 9] = [
     "206.137.117.34.bc.googleusercontent.com",
 ];
 
-fn routes() -> Vec<IpAddr> {
+fn resolve_routes() -> (HashSet<IpAddr>, Vec<ResolveError>) {
     use trust_dns_resolver::config::*;
     use trust_dns_resolver::Resolver;
 
     let resolver = Resolver::new(ResolverConfig::default(), ResolverOpts::default()).unwrap();
 
-    let mut res: Vec<_> = SYNC_BACKENDS
+    let (err, res): (Vec<_>, Vec<_>) = SYNC_BACKENDS
         .into_iter()
         .map(|domain| resolver.lookup_ip(domain))
-        .filter_map(Result::ok)
+        .partition_map(Either::from);
+
+    let res: HashSet<_> = res
+        .into_iter()
         .map(|r| r.into_iter())
         .flatten()
         .collect();
-    res.sort_unstable();
-    res.dedup();
     log::debug!("sync routes: {res:?}");
-    res
+    (res, err)
+}
+
+fn routes_from_file() -> Result<Vec<IpAddr>> {
+    let text = match fs::read_to_string("routes.txt") {
+        Ok(lines) => lines,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => Err(e).wrap_err("Could not \"routes.txt\"")?,
+    };
+
+    let routes: Result<Vec<_>, _> = text.lines().map(IpAddr::from_str).collect();
+    routes.wrap_err("could not parse adress in file")
+}
+
+fn routes_to_file(routes: &HashSet<IpAddr>) -> Result<()> {
+    let lines = routes.iter().map(|ip| format!("{ip}")).join("\n");
+    fs::write("routes.txt", lines.as_bytes()).wrap_err("Could not cache routes to file")
+}
+
+fn routes() -> Result<Vec<IpAddr>> {
+    let (mut res, err) = resolve_routes();
+    let conn_err = err
+        .iter()
+        .map(ResolveError::kind)
+        .find(|k| matches!(k, ResolveErrorKind::NoConnections));
+    if conn_err.is_some() {
+        let cached = routes_from_file()?;
+        res.extend(cached.iter());
+    }
+
+    routes_to_file(&res)?;
+    Ok(res.into_iter().collect())
 }
 
 pub fn block() -> Result<()> {
     log::info!("blocking sync");
     let existing = parse_routes().wrap_err("Error parsing routing table")?;
-    for addr in routes() {
+    for addr in routes()? {
         if existing.contains(&addr) {
             continue;
         }
@@ -117,7 +150,7 @@ pub fn block() -> Result<()> {
 pub fn unblock() -> Result<()> {
     log::info!("unblocking sync");
     let existing = parse_routes().wrap_err("Error parsing routing table")?;
-    for addr in routes() {
+    for addr in routes()? {
         if existing.contains(&addr) {
             unblock_route(addr)?;
         }

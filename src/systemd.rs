@@ -67,7 +67,7 @@ fn wait_for(service: &str, state: bool) -> Result<()> {
 }
 
 // String should be written to a .service file
-fn service_str(_args: &crate::Args) -> Result<String> {
+fn service_str() -> Result<String> {
     let path = current_exe().wrap_err(concat!(
         "Could not get ",
         env!("CARGO_PKG_NAME"),
@@ -78,12 +78,12 @@ fn service_str(_args: &crate::Args) -> Result<String> {
     let bin_path = path.to_str().unwrap();
     let args: String = std::env::args()
         .skip(1) // skip binary name
-        .filter(|a| a != "install")
         .map(|mut s| {
             s.push(' ');
             s
         })
         .collect();
+    let args = args.replace("install", "run");
 
     Ok(format!(
         "[Unit]
@@ -106,8 +106,8 @@ macro_rules! unit_path {
     };
 }
 
-pub fn write_service(args: &crate::Args) -> Result<()> {
-    let service = service_str(args).wrap_err("Could not construct service")?;
+pub fn write_service() -> Result<()> {
+    let service = service_str().wrap_err("Could not construct service")?;
     let path = unit_path!("service");
     fs::write(path, service).wrap_err_with(|| format!("could not write file to: {path}"))?;
     Ok(())
