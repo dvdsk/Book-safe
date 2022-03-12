@@ -92,7 +92,7 @@ Description=Makes folders in ui inaccesible for given period
 [Service]
 Type=oneshot
 WorkingDirectory={working_dir}
-ExecStart={bin_path} run {args}
+ExecStart={bin_path} {args}
 
 [Install]
 WantedBy=multi-user.target
