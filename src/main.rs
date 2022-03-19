@@ -119,14 +119,26 @@ fn unlock_files() -> Result<()> {
     Ok(())
 }
 
+fn locked_files() -> Result<bool> {
+    Ok(fs::read_dir(safe_dir())?.next().is_none())
+}
+
 fn unlock() -> Result<()> {
-    unlock_files()?;
-    report::remove().wrap_err("Could not remove locked files report")?;
-    sync::unblock().wrap_err("Could not unblock sync")?;
-    Ok(())
+    if locked_files()? {
+        systemd::ui_action("stop").wrap_err("Could not stop gui")?;
+        unlock_files()?;
+        report::remove().wrap_err("Could not remove locked files report")?;
+        systemd::reset_failed()?;
+        systemd::ui_action("start").wrap_err("Could not start gui")?;
+    }
+
+    sync::unblock().wrap_err("Could not unblock sync")
 }
 
 fn lock(mut forbidden: Vec<String>, unlock_at: Time) -> Result<()> {
+    systemd::ui_action("stop").wrap_err("Could not stop gui")?;
+    {
+
     unlock_files().wrap_err("could not unlock files")?; // ensure nothing is in locked folder
 
     let (tree, _) = directory::map().wrap_err("Could not build document tree")?;
@@ -146,7 +158,9 @@ fn lock(mut forbidden: Vec<String>, unlock_at: Time) -> Result<()> {
     sync::block().wrap_err("Could not block sync")?;
     move_docs(to_lock).wrap_err("Could not move book data")?;
 
-    Ok(())
+    }
+    systemd::reset_failed()?;
+    systemd::ui_action("start").wrap_err("Could not start gui")
 }
 
 fn without_overlapping(mut list: Vec<String>) -> Vec<String> {
@@ -182,15 +196,12 @@ fn main() -> Result<()> {
     .unwrap();
 
     ensure_safe_dir()?;
-    systemd::ui_action("stop").wrap_err("Could not stop gui")?;
     match cli.command {
         Commands::Run(args) => run(args).wrap_err("Error while running"),
         Commands::Install(args) => install(args).wrap_err("Error while installing"),
         Commands::Uninstall => remove().wrap_err("Error while removing"),
         Commands::Unlock => unlock().wrap_err("Error unlocking files"),
-    }?;
-    systemd::reset_failed()?;
-    systemd::ui_action("start").wrap_err("Could not start gui")
+    }
 }
 
 fn run(args: Args) -> Result<()> {
