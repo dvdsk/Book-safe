@@ -120,7 +120,7 @@ fn unlock_files() -> Result<()> {
 }
 
 fn locked_files() -> Result<bool> {
-    Ok(fs::read_dir(safe_dir())?.next().is_none())
+    Ok(fs::read_dir(safe_dir())?.next().is_some())
 }
 
 fn unlock() -> Result<()> {
@@ -130,6 +130,8 @@ fn unlock() -> Result<()> {
         report::remove().wrap_err("Could not remove locked files report")?;
         systemd::reset_failed()?;
         systemd::ui_action("start").wrap_err("Could not start gui")?;
+    } else {
+        log::info!("no files to unlock")
     }
 
     sync::unblock().wrap_err("Could not unblock sync")
