@@ -133,7 +133,7 @@ pub fn build(tree: Tree, roots: Vec<NodeId>, unlock: Time) -> Doc {
     doc.add_title("Folders are locked");
     doc.vspace(10.);
     doc.add_header(&format!(
-        "Will unlock at: {}:{}",
+        "Will unlock at: {}:{:02}",
         unlock.hour(),
         unlock.minute()
     ));
