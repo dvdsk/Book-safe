@@ -47,3 +47,4 @@ Requires a _unix_ os to set up.
 timedatectl list-timezones
 timedatectl set-timezone <your_time_zone>
 ```
+- run booksafe with `install` subcommand, note: each time remarkable updates you will need to install booksafe again or it will either not run or activate at old times.
