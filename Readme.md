@@ -42,9 +42,9 @@ Requires a _unix_ os to set up.
 - _[optional]_ Turn off auto poweroff on the remarkable
 - _[optional]_ change the `SERVER_DIR` to where you want to 'install' book-safe
 - run `deploy.sh`
-- _[optional]_ set the timezone on the device, that way you do not need to enter the time in UTC. Use:
+- _[optional]_ set the timezone on the device, that way you do not need to enter the time in UTC. _note you will need to do this again after the next remarkable update._ Use:
 ```bash
 timedatectl list-timezones
 timedatectl set-timezone <your_time_zone>
 ```
-- run booksafe with `install` subcommand, note: each time remarkable updates you will need to install booksafe again or it will either not run or activate at old times.
+- run booksafe with `install` subcommand, _note: each time remarkable updates you will need to install booksafe again or it will either not run or activate at old times._
