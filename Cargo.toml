@@ -16,6 +16,10 @@ trust-dns-resolver = "0.21"
 log = "0.4"
 simplelog = "0.11"
 itertools = "0.10.3"
+rust-fuzzy-search = "0.1"
+
+[dev-dependencies]
+float_eq = "0.7"
 
 # optimize any non workspace member for debug builds
 # since we will not rebuild them often and a smaller binary 

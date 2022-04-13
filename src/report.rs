@@ -111,7 +111,7 @@ impl Doc {
     }
 }
 
-pub fn build(tree: Tree, roots: Vec<NodeId>, unlock: Time) -> Doc {
+pub fn build(tree: Tree, roots: Vec<NodeId>, missing: Vec<String>, unlock: Time) -> Doc {
     let (w, h) = (Mm(210.), Mm(297.));
     let (pdf, page, layer1) = PdfDocument::new("Book-locker", w, h, "Layer 1");
     let layer = pdf.get_page(page).get_layer(layer1);
@@ -131,6 +131,13 @@ pub fn build(tree: Tree, roots: Vec<NodeId>, unlock: Time) -> Doc {
     };
 
     doc.add_title("Folders are locked");
+    if !missing.is_empty() {
+        doc.add_header("Missing paths:");
+        doc.add_text("Could not find these paths, if they where not deleted since book-safe was installed\n there is a bug in book safe. Please report it at github.com/dvdsk/book-safe");
+        for path in missing {
+            doc.add_subheader(&format!("- {}", &path))
+        }
+    }
     doc.vspace(10.);
     doc.add_header(&format!(
         "Will unlock at: {}:{:02}",
@@ -255,7 +262,8 @@ mod test {
     pub fn pdf() -> Result<()> {
         let tree = test_tree();
         let roots = vec![*tree.root(Uuid::from(""))];
-        let doc = build(tree, roots, time::Time::from_hms(12, 42, 59).unwrap());
+        let missing = vec!["missing_path".to_owned(), "another missing path.pdf".to_owned()];
+        let doc = build(tree, roots, missing, time::Time::from_hms(12, 42, 59).unwrap());
         save(doc)?;
         Ok(())
     }

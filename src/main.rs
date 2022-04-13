@@ -5,6 +5,8 @@ use std::path::Path;
 use clap::{Parser, Subcommand};
 use color_eyre::eyre;
 use eyre::{Result, WrapErr};
+use itertools::Itertools;
+use log::warn;
 use simplelog::ConfigBuilder;
 use time::{OffsetDateTime, Time};
 
@@ -146,15 +148,18 @@ fn lock(mut forbidden: Vec<String>, unlock_at: Time) -> Result<()> {
     let (tree, _) = directory::map().wrap_err("Could not build document tree")?;
     let mut to_lock = Vec::new();
 
-    let roots: Vec<_> = forbidden
+    let (roots, missing): (Vec<_>, Vec<_>) = forbidden
         .drain(..)
         .map(|p| tree.node_for(&p))
-        .collect::<Result<_>>()?;
+        .partition_result();
     for node in &roots {
         let mut files = tree.descendant_files(*node)?;
         to_lock.append(&mut files);
     }
-    let pdf = report::build(tree, roots, unlock_at);
+    for path in &missing {
+        warn!("could not find: {path}, if it was not deleted or renamed this is a bug");
+    }
+    let pdf = report::build(tree, roots, missing, unlock_at);
     report::save(pdf).wrap_err("Could not save locked files report")?;
 
     sync::block().wrap_err("Could not block sync")?;
@@ -163,18 +168,6 @@ fn lock(mut forbidden: Vec<String>, unlock_at: Time) -> Result<()> {
     }
     systemd::reset_failed()?;
     systemd::ui_action("start").wrap_err("Could not start gui")
-}
-
-fn without_overlapping(mut list: Vec<String>) -> Vec<String> {
-    let mut result = Vec::new();
-    list.sort_unstable_by_key(String::len);
-
-    for path in list.drain(..) {
-        if !result.iter().any(|prefix| path.starts_with(prefix)) {
-            result.push(path);
-        }
-    }
-    result
 }
 
 // TODO commands: Run, Install, Uninstall. Last one does not need current args
@@ -214,7 +207,8 @@ fn run(args: Args) -> Result<()> {
         .time();
     log::info!("system time: {now}");
 
-    let forbidden = without_overlapping(args.lock);
+    let forbidden = util::without_overlapping(args.lock);
+    util::check_folders(&forbidden).wrap_err("Could not find folders")?;
 
     if util::should_lock(now, start, end) {
         log::info!("locking folders");
@@ -228,6 +222,8 @@ fn run(args: Args) -> Result<()> {
 }
 
 fn install(args: Args) -> Result<()> {
+    let forbidden = util::without_overlapping(args.lock.clone());
+    util::check_folders(&forbidden).wrap_err("Could not find folders")?;
     systemd::write_service().wrap_err("Error creating service")?;
     systemd::write_timer(&args).wrap_err("Error creating timer")?;
     systemd::enable().wrap_err("Error enabling service timer")?;
@@ -238,48 +234,4 @@ fn remove() -> Result<()> {
     systemd::disable().wrap_err("Error disabling service")?;
     systemd::remove_units().wrap_err("Error removing service files")?;
     unlock().wrap_err("Error unlocking any locked documents")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use time::Time;
-
-    #[test]
-    fn time_compare() {
-        let start = Time::from_hms(23, 10, 0).unwrap();
-        let end = Time::from_hms(8, 5, 0).unwrap();
-
-        let now = Time::from_hms(8, 10, 0).unwrap();
-        assert!(!util::should_lock(now, start, end));
-
-        let now = Time::from_hms(8, 4, 0).unwrap();
-        assert!(util::should_lock(now, start, end));
-
-        let now = Time::from_hms(23, 11, 0).unwrap();
-        assert!(util::should_lock(now, start, end));
-
-        let now = Time::from_hms(23, 09, 0).unwrap();
-        assert!(!util::should_lock(now, start, end));
-    }
-
-    #[cfg(test)]
-    fn vec(list: &[&str]) -> Vec<String> {
-        list.into_iter().map(|s| s.to_string()).collect()
-    }
-
-    #[test]
-    fn overlapping_paths() {
-        let list = vec(&["a/aa/aaa", "b/bb", "a/aa/aab", "b/ba"]);
-        let res = vec(&["b/bb", "b/ba", "a/aa/aaa", "a/aa/aab"]);
-        assert_eq!(res, without_overlapping(list));
-
-        let list = vec(&["a/aa", "b/bb", "a/aa/aab", "b/ba"]);
-        let res = vec(&["a/aa", "b/bb", "b/ba"]);
-        assert_eq!(res, without_overlapping(list));
-
-        let list = vec(&["Books", "Books/Stories"]);
-        let res = vec(&["Books"]);
-        assert_eq!(res, without_overlapping(list));
-    }
 }

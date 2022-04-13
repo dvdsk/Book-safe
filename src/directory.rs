@@ -3,7 +3,7 @@ use std::fmt::Display;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use color_eyre::{eyre::eyre, eyre::WrapErr, Result};
+use color_eyre::{eyre::WrapErr, Result};
 use indextree::{Arena, NodeId};
 
 #[cfg(target_arch = "arm")]
@@ -160,9 +160,8 @@ impl Tree {
         self.node.get(&uuid).unwrap()
     }
 
-    pub fn node_for(&self, path: &str) -> Result<NodeId> {
+    pub fn node_for(&self, path: &str) -> std::result::Result<NodeId, String> {
         let mut node = *self.root(Uuid("".to_owned()));
-
         // find the right node
         if !path.is_empty() {
             for comp in path.split('/') {
@@ -172,7 +171,7 @@ impl Tree {
                         let name = self.name.get(n).unwrap();
                         name == comp
                     })
-                    .ok_or_else(|| eyre!("path incorrect, failed to find component: {comp}"))?;
+                    .ok_or(path.to_owned())?;
             }
         }
         Ok(node)
