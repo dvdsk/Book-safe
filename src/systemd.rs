@@ -78,9 +78,12 @@ fn service_str() -> Result<String> {
     let bin_path = path.to_str().unwrap();
     let args: String = std::env::args()
         .skip(1) // skip binary name
-        .map(|mut s| {
-            s.push(' ');
-            s
+        .map(|s| {
+            if s.contains(' ') {
+                format!("\"{s}\" ")
+            } else {
+                format!("{s} ")
+            }
         })
         .collect();
     let args = args.replace("install", "run");
