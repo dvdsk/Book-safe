@@ -57,7 +57,7 @@ fn parse_routes() -> Result<HashSet<IpAddr>> {
     let routes: Result<HashSet<IpAddr>, _> = output
         .lines()
         .skip(2)
-        .map(|f| f.split_once(" ").unwrap().0)
+        .map(|f| f.split_once(' ').unwrap().0)
         .map(IpAddr::from_str)
         .collect();
     log::debug!("parsed routes: {routes:?}");
@@ -89,8 +89,7 @@ fn resolve_routes() -> (HashSet<IpAddr>, Vec<ResolveError>) {
 
     let res: HashSet<_> = res
         .into_iter()
-        .map(|r| r.into_iter())
-        .flatten()
+        .flat_map(|r| r.into_iter())
         .collect();
     log::debug!("sync routes: {res:?}");
     (res, err)

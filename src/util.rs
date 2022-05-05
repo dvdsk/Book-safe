@@ -34,7 +34,7 @@ pub fn without_overlapping(mut list: Vec<String>) -> Vec<String> {
     result
 }
 
-fn path_suggestion<'a>(path: String, paths: &'a [String]) -> Option<String> {
+fn path_suggestion(path: String, paths: &[String]) -> Option<String> {
     let paths: Vec<_> = paths.iter().map(|s| s.as_str()).collect();
     let results = fuzzy_search_best_n(&path, &paths, 1);
     let (candidate, score) = results.get(0)?;

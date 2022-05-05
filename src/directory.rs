@@ -171,7 +171,7 @@ impl Tree {
                         let name = self.name.get(n).unwrap();
                         name == comp
                     })
-                    .ok_or(path.to_owned())?;
+                    .ok_or_else(|| path.to_owned())?;
             }
         }
         Ok(node)
@@ -235,7 +235,7 @@ pub fn map() -> Result<(Tree, HashMap<String, Uuid>)> {
 
     for entry in fs::read_dir(DIR).wrap_err("remarkable data directory not found")? {
         let path = entry.unwrap().path();
-        let ext = path.extension().map(|ext| ext.to_str()).flatten();
+        let ext = path.extension().and_then(|ext| ext.to_str());
         match ext {
             Some(e) if e == "metadata" => (),
             Some(_) => continue,
