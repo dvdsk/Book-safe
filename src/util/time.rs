@@ -33,7 +33,7 @@ pub fn set_os_timezone(timezone: &str) -> Result<()> {
 
     if !output.status.success() {
         let reason = String::from_utf8(output.stderr).unwrap();
-        let timezones = get_timezones().wrap_err("Could not get timezones for suggestion")?;
+        let timezones = get_timezones().wrap_err("Could not get time zones for suggestion")?;
         let report = eyre!("{reason}");
         Err(match list_fuzzy(&timezones, timezone, 1).get(0) {
             Some(sugg) => report.suggestion(format!("did you mean: \"{sugg}\"",)),
