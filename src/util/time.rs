@@ -25,11 +25,11 @@ pub fn should_lock(now: Time, start: Time, end: Time) -> bool {
 }
 
 pub fn set_os_timezone(timezone: &str) -> Result<()> {
-    let output = Command::new("datetimectl")
+    let output = Command::new("timedatectl")
         .arg("set-timezone")
         .arg(timezone)
         .output()
-        .wrap_err("Could not run datetimectl")?;
+        .wrap_err("Could not run timedatectl")?;
 
     if !output.status.success() {
         let reason = String::from_utf8(output.stderr).unwrap();
@@ -45,14 +45,14 @@ pub fn set_os_timezone(timezone: &str) -> Result<()> {
 }
 
 fn get_timezones() -> Result<Vec<String>> {
-    let output = Command::new("datetimectl")
+    let output = Command::new("timedatectl")
         .arg("list-timezones")
         .output()
-        .wrap_err("Could not run datetimectl")?;
+        .wrap_err("Could not run timedatectl")?;
 
     if !output.status.success() {
         let reason = String::from_utf8(output.stderr).unwrap();
-        Err(eyre!("{reason}").wrap_err("Systemctl returned an error"))
+        Err(eyre!("{reason}").wrap_err("datetimectl returned an error"))
     } else {
         Ok(output.stdout.lines().map(Result::unwrap).collect_vec())
     }

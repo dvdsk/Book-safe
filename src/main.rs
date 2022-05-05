@@ -208,7 +208,7 @@ fn main() -> Result<()> {
 }
 
 fn run(args: Args) -> Result<()> {
-    set_os_timezone(&args.timezone).wrap_err("Could not set timezone")?;
+    set_os_timezone(&args.timezone).wrap_err("Could not change os time zone")?;
     let start = try_to_time(&args.start).wrap_err("Invalid start time")?;
     let end = try_to_time(&args.end).wrap_err("Invalid end time")?;
     let now = OffsetDateTime::now_local()
@@ -231,7 +231,7 @@ fn run(args: Args) -> Result<()> {
 }
 
 fn install(args: Args) -> Result<()> {
-    set_os_timezone(&args.timezone).wrap_err("Could not set timezone")?;
+    set_os_timezone(&args.timezone).wrap_err("Could not change os time zone")?;
     let forbidden = util::without_overlapping(args.lock.clone());
     util::check_folders(&forbidden).wrap_err("Could not find folders")?;
     systemd::write_service().wrap_err("Error creating service")?;
