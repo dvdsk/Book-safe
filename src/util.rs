@@ -1,10 +1,10 @@
 use color_eyre::{eyre, Help};
 use eyre::{eyre, Result, WrapErr};
-use itertools::Itertools;
-use time::Time;
 use rust_fuzzy_search::fuzzy_search_best_n;
 
 use crate::directory;
+
+pub mod time;
 
 pub trait AcceptErr {
     type Error;
@@ -19,23 +19,6 @@ impl<E> AcceptErr for Result<(), E> {
             Err(e) if predicate(&e) => Ok(()),
             Err(e) => Err(e),
         }
-    }
-}
-
-pub fn try_to_time(s: &str) -> Result<time::Time> {
-    let (h, m) = s
-        .split_once(":")
-        .ok_or_else(|| eyre!("Hours and minutes must be separated by :"))?;
-    let h = h.parse().wrap_err("Could not parse hour")?;
-    let m = m.parse().wrap_err("Could not parse minute")?;
-    time::Time::from_hms(h, m, 0).wrap_err("Hour or minute not possible")
-}
-
-pub fn should_lock(now: Time, start: Time, end: Time) -> bool {
-    if start <= end {
-        now >= start && now <= end
-    } else {
-        now >= start || now <= end
     }
 }
 
@@ -90,24 +73,7 @@ pub fn check_folders(forbidden: &[String]) -> Result<()> {
 mod test {
     use super::*;
     use float_eq::assert_float_eq;
-
-    #[test]
-    fn time_compare() {
-        let start = Time::from_hms(23, 10, 0).unwrap();
-        let end = Time::from_hms(8, 5, 0).unwrap();
-
-        let now = Time::from_hms(8, 10, 0).unwrap();
-        assert!(!should_lock(now, start, end));
-
-        let now = Time::from_hms(8, 4, 0).unwrap();
-        assert!(should_lock(now, start, end));
-
-        let now = Time::from_hms(23, 11, 0).unwrap();
-        assert!(should_lock(now, start, end));
-
-        let now = Time::from_hms(23, 09, 0).unwrap();
-        assert!(!should_lock(now, start, end));
-    }
+    use itertools::Itertools;
 
     #[test]
     fn suggestions() {

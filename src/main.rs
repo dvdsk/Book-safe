@@ -13,6 +13,8 @@ use time::{OffsetDateTime, Time};
 use directory::Uuid;
 use util::AcceptErr;
 
+use crate::util::time::{set_os_timezone, should_lock, try_to_time};
+
 mod directory;
 mod report;
 mod sync;
@@ -33,6 +35,11 @@ pub struct Args {
     /// when to release folders, format 23:59
     #[clap(short, long)]
     end: String,
+
+    /// timezone, needed as remarkable resets the device's
+    /// timezone to UTC on every update
+    #[clap(short('z'), long)]
+    timezone: String,
 }
 
 #[derive(Subcommand, Debug)]
@@ -48,6 +55,8 @@ enum Commands {
     Uninstall,
     /// Unlock all files
     Unlock,
+    /// List supported timezones
+    ListTz { search: Option<String> },
 }
 
 #[derive(Parser, Debug)]
@@ -142,29 +151,27 @@ fn unlock() -> Result<()> {
 fn lock(mut forbidden: Vec<String>, unlock_at: Time) -> Result<()> {
     systemd::ui_action("stop").wrap_err("Could not stop gui")?;
     {
+        unlock_files().wrap_err("could not unlock files")?; // ensure nothing is in locked folder
 
-    unlock_files().wrap_err("could not unlock files")?; // ensure nothing is in locked folder
+        let (tree, _) = directory::map().wrap_err("Could not build document tree")?;
+        let mut to_lock = Vec::new();
 
-    let (tree, _) = directory::map().wrap_err("Could not build document tree")?;
-    let mut to_lock = Vec::new();
+        let (roots, missing): (Vec<_>, Vec<_>) = forbidden
+            .drain(..)
+            .map(|p| tree.node_for(&p))
+            .partition_result();
+        for node in &roots {
+            let mut files = tree.descendant_files(*node)?;
+            to_lock.append(&mut files);
+        }
+        for path in &missing {
+            warn!("could not find: {path}, if it was not deleted or renamed this is a bug");
+        }
+        let pdf = report::build(tree, roots, missing, unlock_at);
+        report::save(pdf).wrap_err("Could not save locked files report")?;
 
-    let (roots, missing): (Vec<_>, Vec<_>) = forbidden
-        .drain(..)
-        .map(|p| tree.node_for(&p))
-        .partition_result();
-    for node in &roots {
-        let mut files = tree.descendant_files(*node)?;
-        to_lock.append(&mut files);
-    }
-    for path in &missing {
-        warn!("could not find: {path}, if it was not deleted or renamed this is a bug");
-    }
-    let pdf = report::build(tree, roots, missing, unlock_at);
-    report::save(pdf).wrap_err("Could not save locked files report")?;
-
-    sync::block().wrap_err("Could not block sync")?;
-    move_docs(to_lock).wrap_err("Could not move book data")?;
-
+        sync::block().wrap_err("Could not block sync")?;
+        move_docs(to_lock).wrap_err("Could not move book data")?;
     }
     systemd::reset_failed()?;
     systemd::ui_action("start").wrap_err("Could not start gui")
@@ -196,12 +203,14 @@ fn main() -> Result<()> {
         Commands::Install(args) => install(args).wrap_err("Error while installing"),
         Commands::Uninstall => remove().wrap_err("Error while removing"),
         Commands::Unlock => unlock().wrap_err("Error unlocking files"),
+        Commands::ListTz { search } => util::time::list_tz(search),
     }
 }
 
 fn run(args: Args) -> Result<()> {
-    let start = util::try_to_time(&args.start).wrap_err("Invalid start time")?;
-    let end = util::try_to_time(&args.end).wrap_err("Invalid end time")?;
+    set_os_timezone(&args.timezone).wrap_err("Could not set timezone")?;
+    let start = try_to_time(&args.start).wrap_err("Invalid start time")?;
+    let end = try_to_time(&args.end).wrap_err("Invalid end time")?;
     let now = OffsetDateTime::now_local()
         .wrap_err("Could not get time")?
         .time();
@@ -210,7 +219,7 @@ fn run(args: Args) -> Result<()> {
     let forbidden = util::without_overlapping(args.lock);
     util::check_folders(&forbidden).wrap_err("Could not find folders")?;
 
-    if util::should_lock(now, start, end) {
+    if should_lock(now, start, end) {
         log::info!("locking folders");
         lock(forbidden, end).wrap_err("Could not lock forbidden folders")?;
     } else {
@@ -222,6 +231,7 @@ fn run(args: Args) -> Result<()> {
 }
 
 fn install(args: Args) -> Result<()> {
+    set_os_timezone(&args.timezone).wrap_err("Could not set timezone")?;
     let forbidden = util::without_overlapping(args.lock.clone());
     util::check_folders(&forbidden).wrap_err("Could not find folders")?;
     systemd::write_service().wrap_err("Error creating service")?;

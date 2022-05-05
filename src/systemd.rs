@@ -6,7 +6,7 @@ use std::{fs, thread};
 use color_eyre::eyre;
 use eyre::{eyre, Result, WrapErr};
 
-use crate::util;
+use crate::util::time::try_to_time;
 
 #[cfg(not(target_arch = "arm"))]
 pub fn reset_failed() -> Result<()> {
@@ -118,8 +118,8 @@ pub fn write_service() -> Result<()> {
 
 // String should be written to a .timer file
 fn timer_str(args: &crate::Args) -> Result<String> {
-    let start = util::try_to_time(&args.start).wrap_err("Invalid start time")?;
-    let end = util::try_to_time(&args.end).wrap_err("Invalid end time")?;
+    let start = try_to_time(&args.start).wrap_err("Invalid start time")?;
+    let end = try_to_time(&args.end).wrap_err("Invalid end time")?;
     // default systemd accuracy is 1 minute for power consumption reasons
     // therefore we add one minute and some seconds to both times to ensure
     // hiding or unhiding happens
