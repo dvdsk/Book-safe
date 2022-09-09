@@ -5,29 +5,33 @@ use std::path::{Path, PathBuf};
 
 use color_eyre::{eyre::WrapErr, Result};
 use indextree::{Arena, NodeId};
+use regex::Regex;
 
 #[cfg(target_arch = "arm")]
 pub const DIR: &str = "/home/root/.local/share/remarkable/xochitl";
 #[cfg(not(target_arch = "arm"))]
 pub const DIR: &str = "data/xochitl";
 
-fn extract_field<'a>(metadata: &'a str, pattern: &str) -> Option<&'a str> {
-    let a = metadata.find(pattern)? + pattern.len();
-    let b = a + metadata[a..].find('\"').unwrap();
+fn extract_field<'a>(metadata: &'a str, field: &str) -> Option<&'a str> {
+    let pattern = format!("\"{field}\": ?(?:\"(.*?)\"|.*?)(?:,|\n)");
+    let re = Regex::new(&pattern).expect(&format!(
+        "Unable to parse pattern {pattern} to Regex object"
+    ));
+    let value = re.captures(metadata)?.get(1)?.as_str();
 
-    Some(&metadata[a..b])
+    Some(value)
 }
 
 fn parent(metadata: &str) -> Option<&str> {
-    extract_field(metadata, "\"parent\": \"")
+    extract_field(metadata, "parent")
 }
 
 fn name(metadata: &str) -> Option<&str> {
-    extract_field(metadata, "\"visibleName\": \"")
+    extract_field(metadata, "visibleName")
 }
 
 fn is_folder(metadata: &str) -> bool {
-    let doc_type = extract_field(metadata, "\"type\": \"").unwrap();
+    let doc_type = extract_field(metadata, "type").unwrap();
     match doc_type {
         "DocumentType" => false,
         "CollectionType" => true,
@@ -136,14 +140,16 @@ impl Tree {
         indent: usize,
         f: &mut std::fmt::Formatter,
     ) -> std::fmt::Result {
-        let ident_str: String = std::iter::once(' ').cycle().take(indent * 4).collect();
+        let ident_str: String =
+            std::iter::once(' ').cycle().take(indent * 4).collect();
         let node_name = self.name.get(&node).unwrap();
         match indent {
             0 => writeln!(f, "{node_name}")?,
             _ => writeln!(f, "{ident_str}|-- {node_name}")?,
         }
         if let Some(files) = self.files.get(&node) {
-            let mut names: Vec<&str> = files.iter().map(|f| f.name.as_str()).collect();
+            let mut names: Vec<&str> =
+                files.iter().map(|f| f.name.as_str()).collect();
             names.sort_unstable();
             for name in names {
                 writeln!(f, "{ident_str}    |-- {name}")?;
@@ -233,7 +239,9 @@ pub fn map() -> Result<(Tree, HashMap<String, Uuid>)> {
     let mut tree = Tree::new();
     let mut index = HashMap::new();
 
-    for entry in fs::read_dir(DIR).wrap_err("remarkable data directory not found")? {
+    for entry in
+        fs::read_dir(DIR).wrap_err("remarkable data directory not found")?
+    {
         let path = entry.unwrap().path();
         let ext = path.extension().and_then(|ext| ext.to_str());
         match ext {
@@ -285,6 +293,41 @@ pub mod test {
         )
     }
 
+    #[test]
+    fn extract_parent_id_with_spaces() {
+        let metadata = r#"{"visibleName":"CMS","type":"CollectionType","parent":"0b7d1978-dc97-4433-8e31-ad6ff7fe1cf7","lastModified":"1654958754102943861","lastOpened":"","version":0,"pinned":false,"synced":true,"modified":false,"deleted":false,"metadatamodified":false}"#;
+        assert_eq!(
+            Some("0b7d1978-dc97-4433-8e31-ad6ff7fe1cf7"),
+            parent(metadata)
+        )
+    }
+
+    #[test]
+    fn extract_visiblename_ending_with_lineend() {
+        let metadata = r#"{
+    "deleted": false,
+    "lastModified": "1643992474183",
+    "lastOpened": "1643992259259",
+    "lastOpenedPage": 0,
+    "metadatamodified": false,
+    "modified": false,
+    "parent": "3055805b-54c9-4950-9492-ff97ee603764",
+    "pinned": false,
+    "synced": true,
+    "type": "DocumentType",
+    "version": 2,
+    "visibleName": "Book recs"
+}
+"#;
+        assert_eq!(Some("Book recs"), name(metadata));
+    }
+
+    #[test]
+    fn extract_type_with_spaces() {
+        let metadata = "{\n    \"deleted\": false,\n    \"lastModified\": \"1643992474183\",\n    \"lastOpened\": \"1643992259259\",\n    \"lastOpenedPage\": 0,\n    \"metadatamodified\": false,\n    \"modified\": false,\n    \"parent\": \"3055805b-54c9-4950-9492-ff97ee603764\",\n    \"pinned\": false,\n    \"synced\": true,\n    \"type\": \"DocumentType\",\n    \"version\": 2,\n    \"visibleName\": \"Book recs\"\n}\n";
+        assert!(!is_folder(metadata));
+    }
+
     #[cfg(test)]
     pub fn test_tree() -> Tree {
         let node_parent_pairs = [
@@ -302,9 +345,17 @@ pub mod test {
         let mut tree = Tree::new();
         for (name, parent) in node_parent_pairs {
             if name.chars().next().unwrap().is_uppercase() {
-                tree.add_folder(name.into(), Uuid(parent.to_owned()), name.into());
+                tree.add_folder(
+                    name.into(),
+                    Uuid(parent.to_owned()),
+                    name.into(),
+                );
             } else {
-                tree.add_file(name.into(), Uuid(parent.to_owned()), name.to_owned());
+                tree.add_file(
+                    name.into(),
+                    Uuid(parent.to_owned()),
+                    name.to_owned(),
+                );
             }
         }
         tree
