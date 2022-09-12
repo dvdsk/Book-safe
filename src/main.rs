@@ -153,11 +153,7 @@ fn unlock() -> Result<()> {
     sync::unblock().wrap_err("Could not unblock sync")
 }
 
-fn lock(
-    mut forbidden: Vec<String>,
-    unlock_at: Time,
-    allow_sync: bool,
-) -> Result<()> {
+fn lock(mut forbidden: Vec<String>, unlock_at: Time, allow_sync: bool) -> Result<()> {
     systemd::ui_action("stop").wrap_err("Could not stop gui")?;
     {
         unlock_files().wrap_err("could not unlock files")?; // ensure nothing is in locked folder
@@ -232,8 +228,7 @@ fn run(args: Args) -> Result<()> {
 
     if should_lock(now, start, end) {
         log::info!("locking folders");
-        lock(forbidden, end, args.allow_sync)
-            .wrap_err("Could not lock forbidden folders")?;
+        lock(forbidden, end, args.allow_sync).wrap_err("Could not lock forbidden folders")?;
     } else {
         log::info!("unlocking everything");
         unlock().wrap_err("Could not unlock all files")?;
