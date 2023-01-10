@@ -13,7 +13,7 @@ pub const DIR: &str = "/home/root/.local/share/remarkable/xochitl";
 pub const DIR: &str = "data/xochitl";
 
 fn extract_field<'a>(metadata: &'a str, field: &str) -> Option<&'a str> {
-    let pattern = format!("\"{field}\": ?(?:\"(.*?)\"|.*?)(?:,|\n)");
+    let pattern = format!("\"{field}\": ?(?:\"(.*?)\"|.*?)(?:,|\n|}})");
     let re = Regex::new(&pattern).expect(&format!(
         "Unable to parse pattern {pattern} to Regex object"
     ));
@@ -322,6 +322,12 @@ pub mod test {
     fn extract_type_with_spaces() {
         let metadata = "{\n    \"deleted\": false,\n    \"lastModified\": \"1643992474183\",\n    \"lastOpened\": \"1643992259259\",\n    \"lastOpenedPage\": 0,\n    \"metadatamodified\": false,\n    \"modified\": false,\n    \"parent\": \"3055805b-54c9-4950-9492-ff97ee603764\",\n    \"pinned\": false,\n    \"synced\": true,\n    \"type\": \"DocumentType\",\n    \"version\": 2,\n    \"visibleName\": \"Book recs\"\n}\n";
         assert!(!is_folder(metadata));
+    }
+
+    #[test]
+    fn extract_visiblename_ending_with_bracket() {
+        let metadata = r#"{"deleted":false,"lastModified":"1673176298000","lastOpened":"","lastOpenedPage":0,"metadatamodified":false,"modified":false,"parent":"816d93cc-1b07-442b-b16c-9a941a3f647c","pinned":false,"synced":false,"type":"CollectionType","version":0,"visibleName":"Missing semester"}"#;
+        assert_eq!(Some("Missing semester"), name(metadata));
     }
 
     #[cfg(test)]
