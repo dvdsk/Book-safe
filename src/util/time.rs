@@ -1,10 +1,10 @@
-use std::{process::Command, io::BufRead};
 use color_eyre::{
     eyre::{eyre, WrapErr},
     Help, Result,
 };
 use itertools::Itertools;
 use rust_fuzzy_search::fuzzy_search_best_n;
+use std::{io::BufRead, process::Command};
 use time::Time;
 
 pub fn try_to_time(s: &str) -> Result<time::Time> {

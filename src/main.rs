@@ -2,7 +2,7 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
 
-use clap::{Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand};
 use color_eyre::eyre;
 use eyre::{Result, WrapErr};
 use itertools::Itertools;
@@ -40,6 +40,11 @@ pub struct Args {
     /// timezone to UTC on every update
     #[clap(short('z'), long)]
     timezone: String,
+
+    /// do not block sync when locking books, the sync will
+    /// delete and re-upload books when locking and unlocking!
+    #[clap(long, action = ArgAction::SetTrue)]
+    allow_sync: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -148,7 +153,7 @@ fn unlock() -> Result<()> {
     sync::unblock().wrap_err("Could not unblock sync")
 }
 
-fn lock(mut forbidden: Vec<String>, unlock_at: Time) -> Result<()> {
+fn lock(mut forbidden: Vec<String>, unlock_at: Time, allow_sync: bool) -> Result<()> {
     systemd::ui_action("stop").wrap_err("Could not stop gui")?;
     {
         unlock_files().wrap_err("could not unlock files")?; // ensure nothing is in locked folder
@@ -170,7 +175,9 @@ fn lock(mut forbidden: Vec<String>, unlock_at: Time) -> Result<()> {
         let pdf = report::build(tree, roots, missing, unlock_at);
         report::save(pdf).wrap_err("Could not save locked files report")?;
 
-        sync::block().wrap_err("Could not block sync")?;
+        if !allow_sync {
+            sync::block().wrap_err("Could not block sync")?;
+        }
         move_docs(to_lock).wrap_err("Could not move book data")?;
     }
     systemd::reset_failed()?;
@@ -221,7 +228,7 @@ fn run(args: Args) -> Result<()> {
 
     if should_lock(now, start, end) {
         log::info!("locking folders");
-        lock(forbidden, end).wrap_err("Could not lock forbidden folders")?;
+        lock(forbidden, end, args.allow_sync).wrap_err("Could not lock forbidden folders")?;
     } else {
         log::info!("unlocking everything");
         unlock().wrap_err("Could not unlock all files")?;
