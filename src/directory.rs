@@ -140,16 +140,14 @@ impl Tree {
         indent: usize,
         f: &mut std::fmt::Formatter,
     ) -> std::fmt::Result {
-        let ident_str: String =
-            std::iter::once(' ').cycle().take(indent * 4).collect();
+        let ident_str: String = std::iter::once(' ').cycle().take(indent * 4).collect();
         let node_name = self.name.get(&node).unwrap();
         match indent {
             0 => writeln!(f, "{node_name}")?,
             _ => writeln!(f, "{ident_str}|-- {node_name}")?,
         }
         if let Some(files) = self.files.get(&node) {
-            let mut names: Vec<&str> =
-                files.iter().map(|f| f.name.as_str()).collect();
+            let mut names: Vec<&str> = files.iter().map(|f| f.name.as_str()).collect();
             names.sort_unstable();
             for name in names {
                 writeln!(f, "{ident_str}    |-- {name}")?;
@@ -239,9 +237,7 @@ pub fn map() -> Result<(Tree, HashMap<String, Uuid>)> {
     let mut tree = Tree::new();
     let mut index = HashMap::new();
 
-    for entry in
-        fs::read_dir(DIR).wrap_err("remarkable data directory not found")?
-    {
+    for entry in fs::read_dir(DIR).wrap_err("remarkable data directory not found")? {
         let path = entry.unwrap().path();
         let ext = path.extension().and_then(|ext| ext.to_str());
         match ext {
@@ -345,17 +341,9 @@ pub mod test {
         let mut tree = Tree::new();
         for (name, parent) in node_parent_pairs {
             if name.chars().next().unwrap().is_uppercase() {
-                tree.add_folder(
-                    name.into(),
-                    Uuid(parent.to_owned()),
-                    name.into(),
-                );
+                tree.add_folder(name.into(), Uuid(parent.to_owned()), name.into());
             } else {
-                tree.add_file(
-                    name.into(),
-                    Uuid(parent.to_owned()),
-                    name.to_owned(),
-                );
+                tree.add_file(name.into(), Uuid(parent.to_owned()), name.to_owned());
             }
         }
         tree

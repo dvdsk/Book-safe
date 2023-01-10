@@ -94,10 +94,10 @@ mod test {
     #[test]
     fn fuzzy_match() {
         use rust_fuzzy_search::fuzzy_compare;
-        let score = fuzzy_compare("Reference textbooks",  "Referece textbooks");
+        let score = fuzzy_compare("Reference textbooks", "Referece textbooks");
         assert_float_eq!(score, 0.85, abs <= 0.001);
 
-        let score = fuzzy_compare("Referece textbooks",  "Referece textbooks");
+        let score = fuzzy_compare("Referece textbooks", "Referece textbooks");
         assert_float_eq!(score, 1.0, abs <= 0.001);
     }
 

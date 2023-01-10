@@ -5,8 +5,10 @@ use color_eyre::{
 use itertools::{Either, Itertools};
 use std::{
     collections::HashSet,
+    fs, io,
     net::IpAddr,
-    process::{Command, Output}, fs, io, str::FromStr,
+    process::{Command, Output},
+    str::FromStr,
 };
 use trust_dns_resolver::error::{ResolveError, ResolveErrorKind};
 
@@ -87,10 +89,7 @@ fn resolve_routes() -> (HashSet<IpAddr>, Vec<ResolveError>) {
         .map(|domain| resolver.lookup_ip(domain))
         .partition_map(Either::from);
 
-    let res: HashSet<_> = res
-        .into_iter()
-        .flat_map(|r| r.into_iter())
-        .collect();
+    let res: HashSet<_> = res.into_iter().flat_map(|r| r.into_iter()).collect();
     log::debug!("sync routes: {res:?}");
     (res, err)
 }

@@ -262,8 +262,16 @@ mod test {
     pub fn pdf() -> Result<()> {
         let tree = test_tree();
         let roots = vec![*tree.root(Uuid::from(""))];
-        let missing = vec!["missing_path".to_owned(), "another missing path.pdf".to_owned()];
-        let doc = build(tree, roots, missing, time::Time::from_hms(12, 42, 59).unwrap());
+        let missing = vec![
+            "missing_path".to_owned(),
+            "another missing path.pdf".to_owned(),
+        ];
+        let doc = build(
+            tree,
+            roots,
+            missing,
+            time::Time::from_hms(12, 42, 59).unwrap(),
+        );
         save(doc)?;
         Ok(())
     }
