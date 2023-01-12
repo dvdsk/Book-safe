@@ -23,25 +23,25 @@ mod util;
 
 #[derive(Parser, Debug)]
 pub struct Args {
-    /// path of a folder to be locked as seen in the ui,
+    /// Path of a folder to be locked (as seen in the ui),
     /// pass multiple times to block multiple folders
     #[clap(short, long)]
     lock: Vec<String>,
 
-    /// when to hide folders, format 23:59
+    /// When to hide folders, format: 23:59
     #[clap(short, long)]
     start: String,
 
-    /// when to release folders, format 23:59
+    /// When to release folders, format: 23:59
     #[clap(short, long)]
     end: String,
 
-    /// timezone, needed as remarkable resets the device's
+    /// Timezone, needed as remarkable resets the device's
     /// timezone to UTC on every update
     #[clap(short('z'), long)]
     timezone: String,
 
-    /// do not block sync when locking books, the sync will
+    /// Do not block sync when locking books, the sync will
     /// delete and re-upload books when locking and unlocking!
     #[clap(long, action = ArgAction::SetTrue)]
     allow_sync: bool,
@@ -52,11 +52,12 @@ enum Commands {
     /// Lock or unlock right now depending on the time
     Run(Args),
     /// Create and enable book-safe system service, locking and unlocking
-    /// at those times. This command requires additional arguments call
-    /// with run --help to see them
+    /// at those times.
+    /// This command requires additional arguments, call
+    /// it with --help to see them
     Install(Args),
     /// Remove book-safe service and unlock all files. This command
-    /// requires additional arguments call with run --help to see them
+    /// requires additional arguments, call it with --help to see them
     Uninstall,
     /// Unlock all files
     Unlock,
@@ -74,8 +75,8 @@ enum Commands {
 struct Cli {
     #[clap(subcommand)]
     command: Commands,
-    /// log verbosity, used for debugging,
-    /// options: trace, debug, info, warn, error
+    /// Log verbosity, used for debugging.
+    /// Options: trace, debug, info, warn, error
     #[clap(short, long, default_value = "info")]
     log: simplelog::Level,
 }
