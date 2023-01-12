@@ -172,6 +172,10 @@ fn lock(mut forbidden: Vec<String>, unlock_at: Time, allow_sync: bool) -> Result
         for path in &missing {
             warn!("could not find: {path}, if it was not deleted or renamed this is a bug");
         }
+        if to_lock.is_empty() {
+            warn!("Found nothing to lock, is folder empty?");
+            return Ok(())
+        }
         let pdf = report::build(tree, roots, missing, unlock_at);
         report::save(pdf).wrap_err("Could not save locked files report")?;
 
