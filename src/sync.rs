@@ -125,6 +125,7 @@ fn routes() -> Result<Vec<IpAddr>> {
     Ok(res.into_iter().collect())
 }
 
+#[cfg(target_arch = "arm")]
 pub fn block() -> Result<()> {
     log::info!("blocking sync");
     let existing = parse_routes().wrap_err("Error parsing routing table")?;
@@ -145,6 +146,14 @@ pub fn block() -> Result<()> {
     Ok(())
 }
 
+#[cfg(not(target_arch = "arm"))]
+pub fn block() -> Result<()> {
+    log::warn!("Not blocking sync because we are debugging (not on arm)");
+
+    Ok(())
+}
+
+#[cfg(target_arch = "arm")]
 pub fn unblock() -> Result<()> {
     log::info!("unblocking sync");
     let existing = parse_routes().wrap_err("Error parsing routing table")?;
@@ -153,5 +162,12 @@ pub fn unblock() -> Result<()> {
             unblock_route(addr)?;
         }
     }
+    Ok(())
+}
+
+#[cfg(not(target_arch = "arm"))]
+pub fn unblock() -> Result<()> {
+    log::warn!("Not unblocking sync because we are debugging (not on arm)");
+
     Ok(())
 }
