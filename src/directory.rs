@@ -121,6 +121,9 @@ impl Tree {
 
     fn path(&self, node: &NodeId) -> PathBuf {
         node.ancestors(&self.arena)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
             .map(|id| self.name.get(&id).unwrap())
             .map(Path::new)
             .collect()
