@@ -172,17 +172,17 @@ fn lock(mut forbidden: Vec<String>, unlock_at: Time, allow_sync: bool) -> Result
         for path in &missing {
             warn!("could not find: {path}, if it was not deleted or renamed this is a bug");
         }
-        if to_lock.is_empty() {
-            warn!("Found nothing to lock, is folder empty?");
-            return Ok(())
-        }
-        let pdf = report::build(tree, roots, missing, unlock_at);
-        report::save(pdf).wrap_err("Could not save locked files report")?;
+        if !to_lock.is_empty() {
+            let pdf = report::build(tree, roots, missing, unlock_at);
+            report::save(pdf).wrap_err("Could not save locked files report")?;
 
-        if !allow_sync {
-            sync::block().wrap_err("Could not block sync")?;
+            if !allow_sync {
+                sync::block().wrap_err("Could not block sync")?;
+            }
+            move_docs(to_lock).wrap_err("Could not move book data")?;
+        } else {
+            warn!("Found nothing to lock, is folder empty?");
         }
-        move_docs(to_lock).wrap_err("Could not move book data")?;
     }
     systemd::reset_failed()?;
     systemd::ui_action("start").wrap_err("Could not start gui")
