@@ -155,8 +155,10 @@ fn unlock() -> Result<()> {
 }
 
 fn lock(mut forbidden: Vec<String>, unlock_at: Time, allow_sync: bool) -> Result<()> {
+    // if we did not lock the ui before building the file tree the ui could
+    // modify the tree while or after we are building it.
     systemd::ui_action("stop").wrap_err("Could not stop gui")?;
-    {
+    'lock_or_dont: {
         unlock_files().wrap_err("could not unlock files")?; // ensure nothing is in locked folder
 
         let (tree, _) = directory::map().wrap_err("Could not build document tree")?;
@@ -173,13 +175,14 @@ fn lock(mut forbidden: Vec<String>, unlock_at: Time, allow_sync: bool) -> Result
         for path in &missing {
             warn!("could not find: {path}, if it was not deleted or renamed this is a bug");
         }
+
         if to_lock.is_empty() {
             warn!("Found nothing to lock, is folder empty?");
-            return Ok(())
+            break 'lock_or_dont;
         }
+
         let pdf = report::build(tree, roots, missing, unlock_at);
         report::save(pdf).wrap_err("Could not save locked files report")?;
-
         if !allow_sync {
             sync::block().wrap_err("Could not block sync")?;
         }
