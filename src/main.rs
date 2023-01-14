@@ -25,8 +25,8 @@ mod util;
 pub struct Args {
     /// Path of a folder to be locked (as seen in the ui),
     /// pass multiple times to block multiple folders
-    #[clap(short, long)]
-    lock: Vec<String>,
+    #[clap(short, long, required=true)]
+    path: Vec<String>,
 
     /// When to hide folders, format: 23:59
     #[clap(short, long)]
@@ -228,7 +228,7 @@ fn run(args: Args) -> Result<()> {
         .time();
     log::info!("system time: {now}");
 
-    let forbidden = util::without_overlapping(args.lock);
+    let forbidden = util::without_overlapping(args.path);
     util::check_folders(&forbidden).wrap_err("Could not find folders")?;
 
     if should_lock(now, start, end) {
@@ -244,7 +244,7 @@ fn run(args: Args) -> Result<()> {
 
 fn install(args: Args) -> Result<()> {
     set_os_timezone(&args.timezone).wrap_err("Could not change os time zone")?;
-    let forbidden = util::without_overlapping(args.lock.clone());
+    let forbidden = util::without_overlapping(args.path.clone());
     util::check_folders(&forbidden).wrap_err("Could not find folders")?;
     systemd::write_service().wrap_err("Error creating service")?;
     systemd::write_timer(&args).wrap_err("Error creating timer")?;
