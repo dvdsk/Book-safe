@@ -1,0 +1,66 @@
+name: Build and Release Stable
+
+on:
+  push:
+    # complemented with branch protection on main this will 
+    # run on any pull request merge
+    branches: main 
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        target: armv7-unknown-linux-gnueabihf
+        toolchain: stable
+
+    - uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-release2-${{ hashFiles('**/Cargo.lock') }}
+
+    - uses: actions-rs/cargo@v1
+      with:
+        use-cross: true
+        command: build
+        args: --target armv7-unknown-linux-gnueabihf --release
+
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with: 
+        name: book-safe
+        path: target/armv7-unknown-linux-gnueabihf/release/book-safe
+
+    - name: get package version and tag.
+      id: version_tag
+      uses: dante-signal31/rust-app-version@v1.0.0
+    outputs:
+      package_tag: ${{ steps.version_tag.outputs.app_version }}
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - name: Download binaries
+      uses: actions/download-artifact@v3
+      with:
+        name: book-safe
+    - name: Release
+      uses: "softprops/action-gh-release@v1"
+      with:
+        prerelease: true
+        name: "Development Build"
+        files: book-safe
+        tag_name: ${{needs.build.outputs.package_tag}}
