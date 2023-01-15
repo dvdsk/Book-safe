@@ -41,7 +41,7 @@ jobs:
       uses: actions/upload-artifact@v3
       with: 
         name: book-safe
-        path: target/release/book-safe
+        path: target/armv7-unknown-linux-gnueabihf/release/book-safe
 
   release:
     runs-on: ubuntu-latest
