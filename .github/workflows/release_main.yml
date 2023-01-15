@@ -32,6 +32,7 @@ jobs:
         key: ${{ runner.os }}-cargo-release2-${{ hashFiles('**/Cargo.lock') }}
 
     - uses: actions-rs/cargo@v1
+      with:
         use-cross: true
         command: build
         args: --target armv7-unknown-linux-gnueabihf --release
