@@ -1,0 +1,55 @@
+name: Build and Release Stable
+
+on:
+  push:
+    # complemented with branch protection on main this will 
+    # run on any pull request merge
+    branches: main 
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+
+    - uses: actions/cache@v2
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-release2-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Build
+      run: cargo build --target=armv7-unknown-linux-gnueabihf --release
+
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with: 
+        name: book-safe
+        path: target/release/book-safe
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - name: Download binaries
+      uses: actions/download-artifact@v3
+      with:
+        name: book-safe
+    - name: Release
+      uses: "softprops/action-gh-release@v1"
+      with:
+        prerelease: true
+        title: "Development Build"
+        files: book-safe
