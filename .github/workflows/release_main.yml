@@ -43,6 +43,12 @@ jobs:
         name: book-safe
         path: target/armv7-unknown-linux-gnueabihf/release/book-safe
 
+    - name: get package version and tag.
+      id: version_tag
+      uses: dante-signal31/rust-app-version@v1.0.0
+    outputs:
+      package_tag: ${{ steps.version_tag.outputs.app_version }}
+
   release:
     runs-on: ubuntu-latest
     needs: build
