@@ -18,6 +18,7 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         profile: minimal
+        use-cross: true
         target: armv7-unknown-linux-gnueabihf
         toolchain: stable
 
