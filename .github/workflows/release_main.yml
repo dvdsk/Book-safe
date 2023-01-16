@@ -63,4 +63,4 @@ jobs:
         prerelease: true
         title: "Development Build"
         files: book-safe
-        tag: ${{needs.build.outputs.package_tag}}
+        tag_name: ${{needs.build.outputs.package_tag}}
