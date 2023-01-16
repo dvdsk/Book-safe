@@ -19,6 +19,7 @@ jobs:
       with:
         profile: minimal
         toolchain: stable
+        components: clippy
 
     - uses: actions/cache@v3
       with:
@@ -32,3 +33,8 @@ jobs:
 
     - name: Test
       run: cargo test
+
+    - name: Lint
+    - uses: actions-rs/clippy-check@v1
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
