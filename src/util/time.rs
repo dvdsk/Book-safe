@@ -7,7 +7,7 @@ use rust_fuzzy_search::fuzzy_search_best_n;
 use std::{io::BufRead, process::Command};
 use time::Time;
 
-pub fn try_to_time(s: &str) -> Result<time::Time> {
+pub fn try_to(s: &str) -> Result<time::Time> {
     let (h, m) = s
         .split_once(':')
         .ok_or_else(|| eyre!("Hours and minutes must be separated by :"))?;
@@ -31,7 +31,9 @@ pub fn set_os_timezone(timezone: &str) -> Result<()> {
         .output()
         .wrap_err("Could not run timedatectl")?;
 
-    if !output.status.success() {
+    if output.status.success() {
+        Ok(())
+    } else {
         let reason = String::from_utf8(output.stderr).unwrap();
         let timezones = get_timezones().wrap_err("Could not get time zones for suggestion")?;
         let report = eyre!("{reason}");
@@ -39,8 +41,6 @@ pub fn set_os_timezone(timezone: &str) -> Result<()> {
             Some(sugg) => report.suggestion(format!("did you mean: \"{sugg}\"",)),
             None => report,
         })
-    } else {
-        Ok(())
     }
 }
 
@@ -50,11 +50,11 @@ fn get_timezones() -> Result<Vec<String>> {
         .output()
         .wrap_err("Could not run timedatectl")?;
 
-    if !output.status.success() {
+    if output.status.success() {
+        Ok(output.stdout.lines().map(Result::unwrap).collect_vec())
+    } else {
         let reason = String::from_utf8(output.stderr).unwrap();
         Err(eyre!("{reason}").wrap_err("datetimectl returned an error"))
-    } else {
-        Ok(output.stdout.lines().map(Result::unwrap).collect_vec())
     }
 }
 
@@ -81,7 +81,7 @@ pub(crate) fn list_tz(search: Option<String>) -> Result<(), color_eyre::Report> 
         timezones = list_fuzzy(&timezones, &term, 10);
     }
     for name in timezones {
-        println!("{}", name);
+        println!("{name}");
     }
     Ok(())
 }
