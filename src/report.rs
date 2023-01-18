@@ -271,7 +271,7 @@ mod test {
             "another missing path.pdf".to_owned(),
         ];
         let doc = build(
-            tree,
+            &tree,
             roots,
             missing,
             time::Time::from_hms(12, 42, 59).unwrap(),
