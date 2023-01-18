@@ -49,7 +49,7 @@ fn unblock_route(address: IpAddr) -> Result<()> {
     handle_any_error(output, address, "Command route delete returned an error")
 }
 
-fn parse_routes() -> Result<HashSet<IpAddr>> {
+fn routing_table() -> Result<HashSet<IpAddr>> {
     let output = Command::new("route")
         .arg("-n")
         .output()
@@ -78,7 +78,7 @@ const SYNC_BACKENDS: [&str; 9] = [
     "206.137.117.34.bc.googleusercontent.com",
 ];
 
-fn resolve_routes() -> (HashSet<IpAddr>, Vec<ResolveError>) {
+fn resolve_sync_routes() -> (HashSet<IpAddr>, Vec<ResolveError>) {
     use trust_dns_resolver::config::*;
     use trust_dns_resolver::Resolver;
 
@@ -110,8 +110,8 @@ fn routes_to_file(routes: &HashSet<IpAddr>) -> Result<()> {
     fs::write("routes.txt", lines.as_bytes()).wrap_err("Could not cache routes to file")
 }
 
-fn routes() -> Result<Vec<IpAddr>> {
-    let (mut res, err) = resolve_routes();
+fn sync_routes() -> Result<Vec<IpAddr>> {
+    let (mut res, err) = resolve_sync_routes();
     let conn_err = err
         .iter()
         .map(ResolveError::kind)
@@ -127,8 +127,8 @@ fn routes() -> Result<Vec<IpAddr>> {
 
 pub fn block() -> Result<()> {
     log::info!("blocking sync");
-    let existing = parse_routes().wrap_err("Error parsing routing table")?;
-    for addr in routes()? {
+    let existing = routing_table().wrap_err("Error parsing routing table")?;
+    for addr in sync_routes()? {
         if existing.contains(&addr) {
             continue;
         }
@@ -147,8 +147,8 @@ pub fn block() -> Result<()> {
 
 pub fn unblock() -> Result<()> {
     log::info!("unblocking sync");
-    let existing = parse_routes().wrap_err("Error parsing routing table")?;
-    for addr in routes()? {
+    let existing = routing_table().wrap_err("Error parsing routing table")?;
+    for addr in sync_routes()? {
         if existing.contains(&addr) {
             unblock_route(addr)?;
         }
