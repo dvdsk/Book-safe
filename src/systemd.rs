@@ -67,9 +67,10 @@ fn wait_for(service: &str, wanted_active: bool) -> Result<()> {
 
     Err(eyre!(
         "Time out waiting for {}",
-        match wanted_active {
-            true => "activation",
-            false => "deactivation",
+        if wanted_active {
+            "activation"
+        } else {
+            "deactivation"
         }
     ))
 }
