@@ -7,22 +7,22 @@ repository = "https://github.com/dvdsk/Book-safe"
 description = "Hide the content of folders on the reMarkable between a given period"
 
 [dependencies]
-clap = { version = "3", features = ["derive", "wrap_help"] }
+clap = { version = "4", features = ["derive", "wrap_help"] }
 color-eyre = "0.6"
 indextree = "4.3"
 time = { version = "0.3", features = ["local-offset"] }
 time-tz = "1"
 printpdf = "0.5"
-trust-dns-resolver = "0.21"
+trust-dns-resolver = "0.22"
 log = "0.4"
-simplelog = "0.11"
+simplelog = "0.12"
 itertools = "0.10.3"
 rust-fuzzy-search = "0.1"
 regex = "1.6.0"
 
 [dev-dependencies]
-float_eq = "0.7"
 built = "0.5"
+float_eq = "1"
 
 # optimize any non workspace member for debug builds
 # since we will not rebuild them often and a smaller binary 
