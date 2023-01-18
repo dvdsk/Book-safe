@@ -1,3 +1,6 @@
+// enable all lints except those in the restriction group
+#![warn(clippy::pedantic, clippy::cargo)] 
+
 use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
