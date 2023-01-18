@@ -61,6 +61,6 @@ jobs:
       uses: "softprops/action-gh-release@v1"
       with:
         prerelease: true
-        name: "Development Build"
+        name: "Stable"
         files: book-safe
         tag_name: ${{needs.build.outputs.package_tag}}
