@@ -5,6 +5,10 @@ edition = "2021"
 authors = ["David Kleingeld"]
 repository = "https://github.com/dvdsk/Book-safe"
 description = "Hide the content of folders on the reMarkable between a given period"
+license = "GPL-3.0"
+readme = "README.md"
+categories = ["cli-tools"]
+keywords = ["remarkable"]
 
 [dependencies]
 clap = { version = "4", features = ["derive", "wrap_help"] }
