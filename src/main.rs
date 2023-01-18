@@ -16,7 +16,7 @@ use time::{OffsetDateTime, Time};
 use directory::Uuid;
 use util::AcceptErr;
 
-use crate::util::time::{set_os_timezone, should_lock, try_to};
+use crate::util::time::{set_os_timezone, should_lock, ParseHourMinute};
 
 mod directory;
 mod report;
@@ -246,8 +246,8 @@ fn main() -> Result<()> {
 
 fn run(args: Args) -> Result<()> {
     set_os_timezone(&args.timezone).wrap_err("Could not change os time zone")?;
-    let start = try_to(&args.start).wrap_err("Invalid start time")?;
-    let end = try_to(&args.end).wrap_err("Invalid end time")?;
+    let start = Time::try_parse(&args.start).wrap_err("Invalid start time")?;
+    let end = Time::try_parse(&args.end).wrap_err("Invalid end time")?;
     let now = OffsetDateTime::now_local()
         .wrap_err("Could not get time")?
         .time();

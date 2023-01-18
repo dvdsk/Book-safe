@@ -6,7 +6,8 @@ use std::{fs, thread};
 use color_eyre::eyre;
 use eyre::{eyre, Result, WrapErr};
 
-use crate::util::time::try_to;
+use time::Time;
+use crate::util::time::ParseHourMinute;
 
 #[cfg(not(target_arch = "arm"))]
 #[allow(clippy::unnecessary_wraps)]
@@ -121,8 +122,8 @@ pub fn write_service() -> Result<()> {
 
 // String should be written to a .timer file
 fn timer_str(args: &crate::Args) -> Result<String> {
-    let start = try_to(&args.start).wrap_err("Invalid start time")?;
-    let end = try_to(&args.end).wrap_err("Invalid end time")?;
+    let start = Time::try_parse(&args.start).wrap_err("Invalid start time")?;
+    let end = Time::try_parse(&args.end).wrap_err("Invalid end time")?;
     // default systemd accuracy is 1 minute for power consumption reasons
     // therefore we add one minute and some seconds to both times to ensure
     // hiding or unhiding happens

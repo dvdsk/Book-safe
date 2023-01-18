@@ -7,13 +7,19 @@ use rust_fuzzy_search::fuzzy_search_best_n;
 use std::{io::BufRead, process::Command};
 use time::Time;
 
-pub fn try_to(s: &str) -> Result<time::Time> {
-    let (h, m) = s
-        .split_once(':')
-        .ok_or_else(|| eyre!("Hours and minutes must be separated by :"))?;
-    let h = h.parse().wrap_err("Could not parse hour")?;
-    let m = m.parse().wrap_err("Could not parse minute")?;
-    time::Time::from_hms(h, m, 0).wrap_err("Hour or minute not possible")
+pub trait ParseHourMinute {
+    fn try_parse(s: &str) -> Result<time::Time>;
+}
+
+impl ParseHourMinute for time::Time {
+    fn try_parse(s: &str) -> Result<time::Time> {
+        let (h, m) = s
+            .split_once(':')
+            .ok_or_else(|| eyre!("Hours and minutes must be separated by :"))?;
+        let h = h.parse().wrap_err("Could not parse hour")?;
+        let m = m.parse().wrap_err("Could not parse minute")?;
+        time::Time::from_hms(h, m, 0).wrap_err("Hour or minute not possible")
+    }
 }
 
 pub fn should_lock(now: Time, start: Time, end: Time) -> bool {
