@@ -6,8 +6,8 @@ use std::{fs, thread};
 use color_eyre::eyre;
 use eyre::{eyre, Result, WrapErr};
 
-use time::Time;
 use crate::util::time::ParseHourMinute;
+use time::Time;
 
 #[cfg(not(target_arch = "arm"))]
 #[allow(clippy::unnecessary_wraps)]
@@ -58,16 +58,20 @@ fn is_active(service: &str) -> Result<bool> {
 
 fn wait_for(service: &str, wanted_active: bool) -> Result<()> {
     for _ in 0..20 {
-        if wanted_active == is_active(service)? {
-            return Ok(());
-        }
+        match (wanted_active, is_active(service)?) {
+            (true, true) | (false, false) => return Ok(()),
+            (true, false) | (false, true) => (),
+        };
         thread::sleep(Duration::from_millis(50));
     }
-    if wanted_active {
-        Err(eyre!("Time out waiting for activation"))
-    } else {
-        Err(eyre!("Time out waiting for deactivation"))
-    }
+
+    Err(eyre!(
+        "Time out waiting for {}",
+        match wanted_active {
+            true => "activation",
+            false => "deactivation",
+        }
+    ))
 }
 
 // String should be written to a .service file
