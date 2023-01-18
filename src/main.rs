@@ -17,15 +17,28 @@ use crate::util::time::{set_os_timezone, should_lock, try_to_time};
 
 mod directory;
 mod report;
-mod sync;
 mod systemd;
 mod util;
+
+#[cfg(target_arch = "arm")]
+mod sync;
+#[cfg(not(target_arch = "arm"))]
+mod sync {
+    pub fn block() -> color_eyre::Result<()> {
+        log::warn!("Not blocking sync because we are debugging (not on arm)");
+        Ok(())
+    }
+    pub fn unblock() -> color_eyre::Result<()> {
+        log::warn!("Not unblocking sync because we are debugging (not on arm)");
+        Ok(())
+    }
+}
 
 #[derive(Parser, Debug)]
 pub struct Args {
     /// Path of a folder to be locked (as seen in the ui),
     /// pass multiple times to block multiple folders
-    #[clap(short, long, required=true)]
+    #[clap(short, long, required = true)]
     path: Vec<String>,
 
     /// When to hide folders, format: 23:59
@@ -109,7 +122,11 @@ fn move_doc(uuid: Uuid) -> Result<()> {
 }
 
 fn safe_dir() -> &'static Path {
-    Path::new("locked_books")
+    if cfg!(target_arch = "arm") {
+        Path::new("/home/root/locked_books")
+    } else {
+        Path::new("data/locked_books")
+    }
 }
 
 fn ensure_safe_dir() -> Result<()> {
