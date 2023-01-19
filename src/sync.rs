@@ -145,13 +145,32 @@ pub fn block() -> Result<()> {
     Ok(())
 }
 
+/// directly after resuming from sleep the `route` tool does not seem to work
+/// therefore this retries `route` a few times
 pub fn unblock() -> Result<()> {
     log::info!("unblocking sync");
-    let existing = routing_table().wrap_err("Error parsing routing table")?;
-    for addr in sync_routes()? {
-        if existing.contains(&addr) {
-            unblock_route(addr)?;
+    let to_unblock: HashSet<_> = routes_from_file()
+        .wrap_err("Could not retrieve blocked routes from file")?
+        .into_iter()
+        .collect();
+
+    for attempt in 0..5 {
+        let routes = routing_table().wrap_err("Error parsing routing table")?;
+        for addr in to_unblock {
+            if routes.contains(&addr) {
+                unblock_route(addr)?;
+            } else {
+                debug!("confirmed addr: \"{addr}\" is unblocked");
+                to_unblock.remove(&addr);
+            }
         }
+
+        if to_unblock.is_empty() {
+            debug!("unblocked successfull in {attempt} attemps");
+            return Ok(());
+        }
+        thread::sleep(Duration::from_millis(200))
     }
-    Ok(())
+
+    Err(eyre!("Timed out unblocking"))
 }
