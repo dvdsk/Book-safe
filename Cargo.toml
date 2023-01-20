@@ -9,6 +9,7 @@ description = "Hide the content of folders on the reMarkable between a given per
 [dependencies]
 clap = { version = "4", features = ["derive", "wrap_help"] }
 color-eyre = "0.6"
+thiserror = "1"
 indextree = "4.3"
 time = { version = "0.3", features = ["local-offset"] }
 time-tz = "1"
