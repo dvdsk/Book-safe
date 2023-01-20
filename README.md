@@ -1,8 +1,8 @@
 ## Temporarily lock files and folders on your reMarkable
-I often "forget" the time when reading a great book. In the past there was nothing that could be done about that. In the time of e-readers however, we can. _Book safe_ hides the content of one or more folders from the reMarkable UI within a given time period, and adds a pdf that lists what has been blocked. While folders are blocked, the cloud sync is disabled by default, to prevent deleting and re-uploading of files.
+I often "forget" the time when reading a great book. In the past there was nothing that could be done about that. In the time of e-readers however, we can. _Book safe_ hides the content of one or more folders from the reMarkable UI within a given time period, and adds a pdf that lists what has been blocked. While folders are blocked, the cloud sync is disabled by default. This prevents the sync from treating hidden files as deleted, and from re-uploading them when they re-appear.
 
 #### Be sure to have a backup of all your documents before you try this!
-Even if my code contains zero bugs (we wish) in the future, reMarkable might decide to _"clean up"_ files moved by this application. That would delete any locked files. __Note that the _reMarkable cloud_ is not a backup!__ The _reMarkable cloud_ simply mirrors what is on the device, if it loses your files and it syncs, they will be gone from the cloud too.
+Even if this code contains zero bugs (we wish) in the future, reMarkable might decide to _"clean up"_ files moved by this application. That would delete any locked files. __Note that the _reMarkable cloud_ is not a backup!__ The _reMarkable cloud_ simply mirrors what is on the device, if it loses your files and it syncs, they will be gone from the cloud too.
 
 #### Usage
 On the reMarkable, run the book-safe binary with one of the following subcommands:
@@ -36,13 +36,13 @@ The cloud sync is disabled while files are blocked, unless _Book safe_ is instal
 
 To disable the cloud sync, _Book safe_ blocks network to the reMarkable server by changing the Linux firewall. These changes are lost on reboot. If anything goes wrong, sync can thus be re-enabled by rebooting the device. It is also strongly recommended to disable `auto power-off` in `settings->battery`, because the auto power-off will re-enable the sync while the files are still blocked.
 
-In case anything goes wrong, hidden content can be restored by moving the entire content of `/root/home/locked_books` back to `/home/root/.local/share/xochitl`.
+In case anything goes wrong, you can run `book-safe unlock` to move the hidden files back to their original location. Hidden content can also be restored manually by moving the entire content of `/root/home/locked_books` back to `/home/root/.local/share/xochitl`.
 
 #### Setup 
 - Download the latest stable release [binary](https://github.com/dvdsk/Book-safe/releases).
-- Move it to anywhere on your reMarkable. I usually place it in `/home/root`.
+- Move it to any folder of your choice on your reMarkable. I usually place it in `/home/root`.
 - _[optional]_ Turn off auto power-off on the reMarkable.
-- Run the binary with the `install` subcommand. _Note: each time reMarkable updates, you will need to install Book safe again, or it will either not run or activate at old times._
+- Run the binary with the `install` subcommand. _Note: each time reMarkable updates, you will need to install Book safe again, or it will either not run or activate at old times (from two updates ago)._
 
 #### Dev Setup
 Requires a _Unix_ OS.
