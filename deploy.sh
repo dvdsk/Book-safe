@@ -10,12 +10,9 @@ SERVER_ADDR="remarkable"
 SERVER_USER="root"
 SERVER_DIR="/home/$SERVER_USER/book-safe"
 
-dir=debug
-if [ "$1" = "--release" ]; then
-	dir=release
-fi
+dir=release
 
-cross build --target=armv7-unknown-linux-gnueabihf $1
+cross build --target=armv7-unknown-linux-gnueabihf --release
 rsync -vh --progress \
   target/armv7-unknown-linux-gnueabihf/$dir/book-safe \
   $SERVER_ADDR:/tmp/
