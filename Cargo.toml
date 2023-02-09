@@ -25,7 +25,7 @@ rust-fuzzy-search = "0.1"
 regex = "1.7.1"
 
 [dev-dependencies]
-built = "0.5"
+built = "0.6"
 float_eq = "1"
 
 # optimize any non workspace member for debug builds
