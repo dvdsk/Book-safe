@@ -30,13 +30,6 @@ impl Cached {
         Ok(Cached(entries))
     }
 
-    fn oldest(&self) -> Option<Duration> {
-        self.0
-            .iter()
-            .filter_map(|e| e.last_updated.elapsed().ok())
-            .max()
-    }
-
     #[must_use]
     fn n_recent(&self) -> usize {
         self.0

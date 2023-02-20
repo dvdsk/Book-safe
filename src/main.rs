@@ -178,7 +178,7 @@ fn try_lock(mut forbidden: Vec<String>, unlock_at: Time, allow_sync: bool) -> Re
         .map(|p| tree.node_for(&p))
         .partition_result();
     for node in &roots {
-        let mut files = tree.descendant_files(*node)?;
+        let mut files = tree.descendant_files(*node);
         to_lock.append(&mut files);
     }
     for path in &missing {
@@ -190,12 +190,12 @@ fn try_lock(mut forbidden: Vec<String>, unlock_at: Time, allow_sync: bool) -> Re
         return Ok(());
     }
 
-    let pdf = report::build(tree, roots, missing, unlock_at);
+    let pdf = report::build(&tree, roots, missing, unlock_at);
     report::save(pdf).wrap_err("Could not save locked files report")?;
     if !allow_sync {
         sync::block().wrap_err("Could not block sync")?;
     }
-    move_docs(to_lock).wrap_err("Could not move book data")
+    move_docs(&to_lock).wrap_err("Could not move book data")
 }
 
 fn lock(forbidden: Vec<String>, unlock_at: Time, allow_sync: bool) -> Result<()> {
