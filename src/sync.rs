@@ -67,16 +67,17 @@ fn sync_routes() -> Result<Vec<IpAddr>> {
         }
 
         if start.elapsed() > TIMEOUT {
+            log::warn!("Could not resolve routes within timeout: {TIMEOUT:?}");
             break Vec::new();
         }
 
-        log::debug!("could not resolve sync adresses, retrying...");
+        log::debug!("Could not resolve sync adresses, retrying...");
         thread::sleep(Duration::from_millis(200));
     };
 
     let routes = cache
         .update(resolved)
-        .ok_or_else(|| eyre!("could not is empty, can not block any routes"))?;
+        .ok_or_else(|| eyre!("cache empty and no routes resolved in time"))?;
     routes
         .cache()
         .wrap_err("Could not cache syn routes to durable storage")?;
