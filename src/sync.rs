@@ -28,7 +28,7 @@ const SYNC_BACKENDS: [&str; 9] = [
 ];
 
 fn resolve_sync_routes() -> (Vec<IpAddr>, Vec<ResolveError>) {
-    use trust_dns_resolver::config::*;
+    use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
     use trust_dns_resolver::Resolver;
 
     let resolver = Resolver::new(ResolverConfig::default(), ResolverOpts::default()).unwrap();
@@ -39,7 +39,7 @@ fn resolve_sync_routes() -> (Vec<IpAddr>, Vec<ResolveError>) {
         .partition_map(Either::from);
 
     // there can be duplicate ips, collecting to hashset deduplicates them
-    let mut res: Vec<_> = res.into_iter().flat_map(|r| r.into_iter()).collect();
+    let mut res: Vec<_> = res.into_iter().flat_map(IntoIterator::into_iter).collect();
     res.sort_unstable();
     res.dedup();
 

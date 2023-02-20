@@ -19,7 +19,6 @@ pub struct Entry {
 pub struct Cached(Vec<Entry>);
 
 impl Cached {
-    #[must_use]
     pub fn load() -> Result<Self> {
         let f = fs::OpenOptions::new()
             .read(true)
