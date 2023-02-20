@@ -1,3 +1,6 @@
+// enable all lints except those in the restriction group
+#![warn(clippy::pedantic, clippy::cargo)] 
+
 use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
@@ -13,7 +16,7 @@ use time::{OffsetDateTime, Time};
 use directory::Uuid;
 use util::AcceptErr;
 
-use crate::util::time::{set_os_timezone, should_lock, try_to_time};
+use crate::util::time::{set_os_timezone, should_lock, ParseHourMinute};
 
 mod directory;
 mod report;
@@ -81,11 +84,11 @@ struct Cli {
     log: simplelog::Level,
 }
 
-fn move_doc(uuid: Uuid) -> Result<()> {
+fn move_doc(uuid: &Uuid) -> Result<()> {
     let dir = Path::new(directory::DIR);
 
-    let source = dir.join(&uuid);
-    let dest = safe_dir().join(&uuid);
+    let source = dir.join(uuid);
+    let dest = safe_dir().join(uuid);
     fs::rename(source, dest)
         .accept_fn(|e| e.kind() == ErrorKind::NotFound) // there isnt always content and/or pdf file
         .wrap_err_with(|| format!("Could not move directory for document: {uuid}"))?;
@@ -99,8 +102,8 @@ fn move_doc(uuid: Uuid) -> Result<()> {
         "pagedata",
         "pdf",
     ] {
-        let source = dir.join(&uuid).with_extension(ext);
-        let dest = safe_dir().join(&uuid).with_extension(ext);
+        let source = dir.join(uuid).with_extension(ext);
+        let dest = safe_dir().join(uuid).with_extension(ext);
         fs::rename(source, dest)
             .accept_fn(|e| e.kind() == ErrorKind::NotFound) // there isnt always content and/or pdf file
             .wrap_err_with(|| format!("Could not move file with ext: {ext:?}"))?;
@@ -122,8 +125,8 @@ fn ensure_safe_dir() -> Result<()> {
         .wrap_err("Could not create books safe")
 }
 
-fn move_docs(mut to_lock: Vec<Uuid>) -> Result<()> {
-    for uuid in to_lock.drain(..) {
+fn move_docs(to_lock: &[Uuid]) -> Result<()> {
+    for uuid in to_lock {
         move_doc(uuid).wrap_err("Could not move document")?;
     }
     Ok(())
@@ -158,7 +161,7 @@ fn unlock() -> Result<()> {
         systemd::reset_failed()?;
         systemd::ui_action("start").wrap_err("Could not start gui")?;
     } else {
-        log::info!("no files to unlock")
+        log::info!("no files to unlock");
     }
 
     sync::unblock().wrap_err("Could not unblock sync")
@@ -210,10 +213,11 @@ fn lock(forbidden: Vec<String>, unlock_at: Time, allow_sync: bool) -> Result<()>
 // Install creates a systemd unit file and loads it
 // Uninstall removes a systemd unit file and unloads it
 fn main() -> Result<()> {
+    use simplelog::{ColorChoice, TermLogger, TerminalMode};
+
     color_eyre::install()?;
     let cli = Cli::parse();
 
-    use simplelog::{ColorChoice, TermLogger, TerminalMode};
     let config = ConfigBuilder::new()
         .add_filter_ignore_str("trust_dns_resolver")
         .add_filter_ignore_str("trust_dns_proto")
@@ -238,8 +242,8 @@ fn main() -> Result<()> {
 
 fn run(args: Args) -> Result<()> {
     set_os_timezone(&args.timezone).wrap_err("Could not change os time zone")?;
-    let start = try_to_time(&args.start).wrap_err("Invalid start time")?;
-    let end = try_to_time(&args.end).wrap_err("Invalid end time")?;
+    let start = Time::try_parse(&args.start).wrap_err("Invalid start time")?;
+    let end = Time::try_parse(&args.end).wrap_err("Invalid end time")?;
     let now = OffsetDateTime::now_local()
         .wrap_err("Could not get time")?
         .time();

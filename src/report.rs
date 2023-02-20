@@ -1,7 +1,10 @@
 use color_eyre::eyre::Context;
 use color_eyre::Result;
 use indextree::NodeId;
-use printpdf::*;
+use printpdf::{
+    BuiltinFont, IndirectFontRef, Line, Mm, PdfDocument, PdfDocumentReference, PdfLayerReference,
+    PdfPageIndex, Point, Pt,
+};
 use std::fs::{self, File};
 use std::io::{BufWriter, ErrorKind};
 use std::path::Path;
@@ -64,15 +67,15 @@ impl Doc {
     }
 
     fn add_header(&mut self, text: &str) {
-        self.add_sized_header(text, 20.)
+        self.add_sized_header(text, 20.);
     }
 
     fn add_subheader(&mut self, text: &str) {
-        self.add_sized_header(text, 15.)
+        self.add_sized_header(text, 15.);
     }
 
     fn vspace(&mut self, size: f64) {
-        self.y -= Mm(size)
+        self.y -= Mm(size);
     }
 
     fn add_text(&mut self, text: &str) {
@@ -111,7 +114,7 @@ impl Doc {
     }
 }
 
-pub fn build(tree: Tree, roots: Vec<NodeId>, missing: Vec<String>, unlock: Time) -> Doc {
+pub fn build(tree: &Tree, roots: Vec<NodeId>, missing: Vec<String>, unlock: Time) -> Doc {
     let (w, h) = (Mm(210.), Mm(297.));
     let (pdf, page, layer1) = PdfDocument::new("Book-locker", w, h, "Layer 1");
     let layer = pdf.get_page(page).get_layer(layer1);
@@ -135,7 +138,7 @@ pub fn build(tree: Tree, roots: Vec<NodeId>, missing: Vec<String>, unlock: Time)
         doc.add_header("Missing paths:");
         doc.add_text("Could not find these paths, if they where not deleted since book-safe was installed\n there is a bug in book safe. Please report it at github.com/dvdsk/book-safe");
         for path in missing {
-            doc.add_subheader(&format!("- {}", &path))
+            doc.add_subheader(&format!("- {}", &path));
         }
     }
     doc.vspace(10.);
@@ -256,20 +259,19 @@ pub fn remove() -> Result<()> {
 mod test {
     use super::*;
     use crate::directory::test::test_tree;
-    use crate::directory::Uuid;
 
     #[test]
     pub fn pdf() -> Result<()> {
         simplelog::SimpleLogger::init(log::LevelFilter::Warn, simplelog::Config::default())
             .unwrap();
         let tree = test_tree();
-        let roots = vec![*tree.root(Uuid::from(""))];
+        let roots = vec![*tree.root()];
         let missing = vec![
             "missing_path".to_owned(),
             "another missing path.pdf".to_owned(),
         ];
         let doc = build(
-            tree,
+            &tree,
             roots,
             missing,
             time::Time::from_hms(12, 42, 59).unwrap(),

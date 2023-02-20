@@ -34,12 +34,12 @@ pub fn without_overlapping(mut list: Vec<String>) -> Vec<String> {
     result
 }
 
-fn path_suggestion(path: String, paths: &[String]) -> Option<String> {
-    let paths: Vec<_> = paths.iter().map(|s| s.as_str()).collect();
-    let results = fuzzy_search_best_n(&path, &paths, 1);
-    let (candidate, score) = results.get(0)?;
+fn path_suggestion(path: &str, paths: &[String]) -> Option<String> {
+    let paths: Vec<_> = paths.iter().map(String::as_str).collect();
+    let results = fuzzy_search_best_n(path, &paths, 1);
+    let (candidate, score) = results.first()?;
     if *score > 0.8 {
-        Some(candidate.to_string())
+        Some((*candidate).to_string())
     } else {
         None
     }
@@ -62,7 +62,7 @@ pub fn check_folders(forbidden: &[String]) -> Result<()> {
     let mut report = eyre!("Not every path that should be locked exist");
     for path in missing {
         report = report.section(format!("Could not find: \"{path}\""));
-        if let Some(sug) = path_suggestion(path, &names) {
+        if let Some(sug) = path_suggestion(&path, &names) {
             report = report.suggestion(format!("did you mean: \"{sug}\""));
         }
     }
@@ -87,7 +87,7 @@ mod test {
         .into_iter()
         .map(ToOwned::to_owned)
         .collect_vec();
-        let res = path_suggestion("Reference Textbooks".into(), &paths[..]);
+        let res = path_suggestion("Reference Textbooks", &paths[..]);
         assert_eq!(res, Some("Referece Textbooks".to_owned()));
     }
 
