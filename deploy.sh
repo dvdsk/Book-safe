@@ -7,23 +7,16 @@ set -e
 # please set the variables directly below
 
 SERVER_ADDR="remarkable"
-SERVER_USER="root"
-SERVER_DIR="/home/$SERVER_USER/book-safe"
+SERVER_DIR="/home/root"
 
-dir=debug
-if [ "$1" = "--release" ]; then
-	dir=release
-fi
-
-cross build --target=armv7-unknown-linux-gnueabihf $1
+cross build --target=armv7-unknown-linux-gnueabihf --release
 rsync -vh --progress \
-  target/armv7-unknown-linux-gnueabihf/$dir/book-safe \
+  target/armv7-unknown-linux-gnueabihf/release/book-safe \
   $SERVER_ADDR:/tmp/
 
 cmds="
-mkdir -p $SERVER_DIR
 mv /tmp/book-safe $SERVER_DIR/book-safe
-chown $SERVER_USER:$SERVER_USER $SERVER_DIR/book-safe
+chown root:root $SERVER_DIR/book-safe
 "
 
 ssh -t $SERVER_ADDR "$cmds"

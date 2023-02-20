@@ -19,20 +19,7 @@ mod directory;
 mod report;
 mod systemd;
 mod util;
-
-#[cfg(target_arch = "arm")]
 mod sync;
-#[cfg(not(target_arch = "arm"))]
-mod sync {
-    pub fn block() -> color_eyre::Result<()> {
-        log::warn!("Not blocking sync because we are debugging (not on arm)");
-        Ok(())
-    }
-    pub fn unblock() -> color_eyre::Result<()> {
-        log::warn!("Not unblocking sync because we are debugging (not on arm)");
-        Ok(())
-    }
-}
 
 #[derive(Parser, Debug)]
 pub struct Args {
@@ -157,11 +144,17 @@ fn locked_files() -> Result<bool> {
     Ok(fs::read_dir(safe_dir())?.next().is_some())
 }
 
+fn try_unlock() -> Result<()> {
+    unlock_files()?;
+    report::remove().wrap_err("Could not remove locked files report")
+}
+
 fn unlock() -> Result<()> {
     if locked_files()? {
         systemd::ui_action("stop").wrap_err("Could not stop gui")?;
-        unlock_files()?;
-        report::remove().wrap_err("Could not remove locked files report")?;
+        if let Err(e) = try_unlock() {
+            log::error!("{e}");
+        }
         systemd::reset_failed()?;
         systemd::ui_action("start").wrap_err("Could not start gui")?;
     } else {
@@ -171,39 +164,43 @@ fn unlock() -> Result<()> {
     sync::unblock().wrap_err("Could not unblock sync")
 }
 
-fn lock(mut forbidden: Vec<String>, unlock_at: Time, allow_sync: bool) -> Result<()> {
+fn try_lock(mut forbidden: Vec<String>, unlock_at: Time, allow_sync: bool) -> Result<()> {
+    unlock_files().wrap_err("could not unlock files")?; // ensure nothing is in locked folder
+
+    let (tree, _) = directory::map().wrap_err("Could not build document tree")?;
+    let mut to_lock = Vec::new();
+
+    let (roots, missing): (Vec<_>, Vec<_>) = forbidden
+        .drain(..)
+        .map(|p| tree.node_for(&p))
+        .partition_result();
+    for node in &roots {
+        let mut files = tree.descendant_files(*node)?;
+        to_lock.append(&mut files);
+    }
+    for path in &missing {
+        warn!("could not find: {path}, if it was not deleted or renamed this is a bug");
+    }
+
+    if to_lock.is_empty() {
+        warn!("Found nothing to lock, is folder empty?");
+        return Ok(());
+    }
+
+    let pdf = report::build(tree, roots, missing, unlock_at);
+    report::save(pdf).wrap_err("Could not save locked files report")?;
+    if !allow_sync {
+        sync::block().wrap_err("Could not block sync")?;
+    }
+    move_docs(to_lock).wrap_err("Could not move book data")
+}
+
+fn lock(forbidden: Vec<String>, unlock_at: Time, allow_sync: bool) -> Result<()> {
     // if we did not lock the ui before building the file tree the ui could
     // modify the tree while or after we are building it.
     systemd::ui_action("stop").wrap_err("Could not stop gui")?;
-    'lock_or_dont: {
-        unlock_files().wrap_err("could not unlock files")?; // ensure nothing is in locked folder
-
-        let (tree, _) = directory::map().wrap_err("Could not build document tree")?;
-        let mut to_lock = Vec::new();
-
-        let (roots, missing): (Vec<_>, Vec<_>) = forbidden
-            .drain(..)
-            .map(|p| tree.node_for(&p))
-            .partition_result();
-        for node in &roots {
-            let mut files = tree.descendant_files(*node)?;
-            to_lock.append(&mut files);
-        }
-        for path in &missing {
-            warn!("could not find: {path}, if it was not deleted or renamed this is a bug");
-        }
-
-        if to_lock.is_empty() {
-            warn!("Found nothing to lock, is folder empty?");
-            break 'lock_or_dont;
-        }
-
-        let pdf = report::build(tree, roots, missing, unlock_at);
-        report::save(pdf).wrap_err("Could not save locked files report")?;
-        if !allow_sync {
-            sync::block().wrap_err("Could not block sync")?;
-        }
-        move_docs(to_lock).wrap_err("Could not move book data")?;
+    if let Err(e) = try_lock(forbidden, unlock_at, allow_sync) {
+        log::error!("{e}");
     }
     systemd::reset_failed()?;
     systemd::ui_action("start").wrap_err("Could not start gui")

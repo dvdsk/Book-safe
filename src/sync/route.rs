@@ -1,11 +1,14 @@
-use color_eyre::{eyre, eyre::WrapErr, Help, Result, SectionExt};
-use std::{
-    collections::HashSet,
-    net::IpAddr,
-    process::{Command, Output},
-    str::FromStr,
-};
+#[cfg(target_arch = "arm")]
+use color_eyre::{eyre, Help, SectionExt};
+use color_eyre::{eyre::WrapErr, Result};
 
+#[cfg(target_arch = "arm")]
+use std::process::Output;
+use std::process::Command;
+
+use std::{collections::HashSet, net::IpAddr, str::FromStr};
+
+#[cfg(target_arch = "arm")]
 fn handle_any_error(
     output: Output,
     address: &IpAddr,
@@ -25,6 +28,7 @@ fn handle_any_error(
     }
 }
 
+#[cfg(target_arch = "arm")]
 pub fn block(address: &IpAddr) -> std::result::Result<(), Error> {
     log::debug!("blocking: {address}");
     let output = Command::new("route")
@@ -37,6 +41,7 @@ pub fn block(address: &IpAddr) -> std::result::Result<(), Error> {
     handle_any_error(output, address, "Command route add returned an error")
 }
 
+#[cfg(target_arch = "arm")]
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("could not run route program")]
@@ -49,6 +54,7 @@ pub enum Error {
     NoEffect,
 }
 
+#[cfg(target_arch = "arm")]
 pub fn unblock(address: &IpAddr) -> std::result::Result<(), Error> {
     log::debug!("unblocking: {address}");
     let output = Command::new("route")
