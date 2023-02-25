@@ -22,8 +22,14 @@ impl Cached {
     pub fn load() -> Result<Self> {
         let f = fs::OpenOptions::new()
             .read(true)
+            .write(true)
             .create(true)
             .open("routes.json")?;
+
+        if f.metadata()?.len() == 0 {
+            return Ok(Cached(Vec::new()));
+        }
+
         let r = BufReader::new(f);
         let entries = serde_json::from_reader(r).wrap_err("could not parse adress in file")?;
         Ok(Cached(entries))
