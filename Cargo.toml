@@ -13,7 +13,7 @@ keywords = ["remarkable"]
 [dependencies]
 clap = { version = "4", features = ["derive", "wrap_help"] }
 color-eyre = "0.6"
-indextree = "4.5"
+indextree = "4.6"
 time = { version = "0.3", features = ["local-offset"] }
 time-tz = "1"
 printpdf = "0.5"
