@@ -20,9 +20,9 @@ printpdf = "0.5"
 trust-dns-resolver = "0.22"
 log = "0.4"
 simplelog = "0.12"
-itertools = "0.10.5"
+itertools = "0.10"
 rust-fuzzy-search = "0.1"
-regex = "1.7.1"
+regex = "1.7"
 
 [dev-dependencies]
 built = "0.6"
