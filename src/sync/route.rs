@@ -2,9 +2,9 @@
 use color_eyre::{eyre, Help, SectionExt};
 use color_eyre::{eyre::WrapErr, Result};
 
+use std::process::Command;
 #[cfg(target_arch = "arm")]
 use std::process::Output;
-use std::process::Command;
 
 use std::{collections::HashSet, net::IpAddr, str::FromStr};
 
@@ -14,18 +14,26 @@ fn handle_any_error(
     address: &IpAddr,
     text: &'static str,
 ) -> std::result::Result<(), Error> {
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        Err(Error::Run(
-            eyre::eyre!(text)
-                .with_section(move || stdout.trim().to_string().header("Stdout:"))
-                .with_section(move || stderr.trim().to_string().header("Stderr:"))
-                .with_section(move || format!("adress: {address}")),
-        ))
-    } else {
-        Ok(())
+    if output.status.success() {
+        return Ok(());
     }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    if stderr == "route: SIOCADDRT: File exists\n" {
+        return Err(Error::Exists);
+    }
+
+    if stderr == "route: SIOCDELRT: No such process\n" {
+        return Err(Error::NotFound);
+    }
+
+    Err(Error::Run(
+        eyre::eyre!(text)
+            .with_section(move || stdout.trim().to_string().header("Stdout:"))
+            .with_section(move || stderr.trim().to_string().header("Stderr:"))
+            .with_section(move || format!("adress: {address}")),
+    ))
 }
 
 #[cfg(target_arch = "arm")]
@@ -46,12 +54,16 @@ pub fn block(address: &IpAddr) -> std::result::Result<(), Error> {
 pub enum Error {
     #[error("could not run route program")]
     Start(std::io::Error),
-    #[error("route run into an error while warning: {0}")]
+    #[error("route run into an error while running: {0:?}")]
     Run(eyre::Report),
     #[error("Could not verify change was applied: {0}")]
     Verifying(eyre::Report),
     #[error("Operation was not applied")]
     NoEffect,
+    #[error("Route is already present")]
+    Exists,
+    #[error("Route does not exist")]
+    NotFound,
 }
 
 #[cfg(target_arch = "arm")]

@@ -203,8 +203,10 @@ fn lock(forbidden: Vec<String>, unlock_at: Time, allow_sync: bool) -> Result<()>
     // modify the tree while or after we are building it.
     systemd::ui_action("stop").wrap_err("Could not stop gui")?;
     if let Err(e) = try_lock(forbidden, unlock_at, allow_sync) {
-        log::error!("{e}");
+        log::error!("{e:?}");
+        log::info!("undoing lock work");
     }
+    report::remove()?;
     systemd::reset_failed()?;
     systemd::ui_action("start").wrap_err("Could not start gui")
 }

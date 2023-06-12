@@ -89,7 +89,7 @@ fn sync_routes() -> Result<Vec<IpAddr>> {
 /// therefore this retries `route` a few times
 pub fn block() -> Result<()> {
     log::info!("blocking sync");
-    let to_block = sync_routes()?;
+    let to_block = sync_routes().wrap_err("Could not determine ip's used by sync")?;
 
     #[cfg(target_arch = "arm")]
     let mut attempt = 1;
@@ -104,6 +104,7 @@ pub fn block() -> Result<()> {
         #[cfg(target_arch = "arm")]
         loop {
             match route::block(addr) {
+                Ok(()) | Err(route::Error::Exists) => break,
                 Err(route::Error::NoEffect) if attempt > 4 => {
                     return Err(eyre!("Timed out blocking"))
                 }
@@ -111,8 +112,8 @@ pub fn block() -> Result<()> {
                     attempt += 1;
                     thread::sleep(Duration::from_millis(200))
                 }
+                // route was added on the previous attempt
                 Err(other) => return Err(other).wrap_err("could not block route"),
-                Ok(()) => (),
             }
         }
     }
@@ -141,6 +142,7 @@ pub fn unblock() -> Result<()> {
         #[cfg(target_arch = "arm")]
         loop {
             match route::unblock(addr) {
+                Ok(()) | Err(route::Error::NotFound) => break,
                 Err(route::Error::NoEffect) if attempt > 4 => {
                     return Err(eyre!("Timed out unblocking"))
                 }
@@ -149,7 +151,6 @@ pub fn unblock() -> Result<()> {
                     thread::sleep(Duration::from_millis(200))
                 }
                 Err(other) => return Err(other).wrap_err("could not unblock route"),
-                Ok(()) => (),
             }
         }
     }

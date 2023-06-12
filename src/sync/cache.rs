@@ -1,3 +1,4 @@
+use color_eyre::Help;
 use color_eyre::{eyre::WrapErr, Result};
 use std::io::{BufReader, BufWriter};
 use std::time::{Duration, SystemTime};
@@ -31,7 +32,10 @@ impl Cached {
         }
 
         let r = BufReader::new(f);
-        let entries = serde_json::from_reader(r).wrap_err("could not parse adress in file")?;
+        let entries = serde_json::from_reader(r)
+            .wrap_err("could not parse adress in file")
+            .suggestion("try removing `routes.json`")
+            .note("if that does not work please open an issue")?;
         Ok(Cached(entries))
     }
 
@@ -141,7 +145,6 @@ mod tests {
             dedup_keep_newest(&mut list);
 
             let duplicates = list.iter().duplicates_by(|e| e.ip);
-            dbg!(&duplicates);
 
             assert_eq!(
                 0,
