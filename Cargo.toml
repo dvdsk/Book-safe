@@ -14,16 +14,16 @@ keywords = ["remarkable"]
 clap = { version = "4", features = ["derive", "wrap_help"] }
 color-eyre = "0.6"
 thiserror = "1"
-indextree = "4.5"
+indextree = "4.6"
 time = { version = "0.3", features = ["local-offset"] }
 time-tz = "1"
 printpdf = "0.5"
 trust-dns-resolver = "0.22"
 log = "0.4"
 simplelog = "0.12"
-itertools = "0.10.5"
+itertools = "0.10"
 rust-fuzzy-search = "0.1"
-regex = "1.7"
+regex = "1.8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
