@@ -53,7 +53,7 @@ impl Cached {
     }
 
     #[must_use]
-    pub fn update(mut self, new: Vec<IpAddr>) -> Option<Routes> {
+    pub fn update(mut self, new: Vec<IpAddr>) -> Option<UpToDateRoutes> {
         self.0.extend(new.into_iter().map(|ip| Entry {
             ip,
             last_updated: SystemTime::now(),
@@ -65,7 +65,7 @@ impl Cached {
         }
 
         if self.n_recent() < 2 {
-            return Some(Routes(self.0));
+            return Some(UpToDateRoutes(self.0));
         }
 
         /* TODO: replace with drain_filter once stabelized <16-02-23, dvdsk> */
@@ -80,13 +80,13 @@ impl Cached {
             i += 1;
         }
 
-        Some(Routes(self.0))
+        Some(UpToDateRoutes(self.0))
     }
 }
 
-pub struct Routes(Vec<Entry>);
+pub struct UpToDateRoutes(Vec<Entry>);
 
-impl Routes {
+impl UpToDateRoutes {
     pub fn cache(&self) -> Result<()> {
         let f = fs::OpenOptions::new()
             .write(true)

@@ -47,7 +47,7 @@ fn resolve_sync_routes() -> (Vec<IpAddr>, Vec<ResolveError>) {
     (res, err)
 }
 
-fn sync_routes() -> Result<Vec<IpAddr>> {
+fn update_and_get_sync_routes() -> Result<Vec<IpAddr>> {
     // wifi can take a long time to get up and running
     const TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -85,11 +85,11 @@ fn sync_routes() -> Result<Vec<IpAddr>> {
     Ok(routes.into_ips())
 }
 
-/// directly after resuming from sleep the `route` tool does not seem to work
-/// therefore this retries `route` a few times
+// directly after resuming from sleep the `route` tool does not seem to work
+// therefore this retries `route` a few times
 pub fn block() -> Result<()> {
     log::info!("blocking sync");
-    let to_block = sync_routes().wrap_err("Could not determine ip's used by sync")?;
+    let to_block = update_and_get_sync_routes().wrap_err("Could not determine ip's used by sync")?;
 
     #[cfg(target_arch = "arm")]
     let mut attempt = 1;
