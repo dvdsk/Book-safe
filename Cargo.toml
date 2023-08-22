@@ -18,7 +18,7 @@ indextree = "4.6"
 time = { version = "0.3", features = ["local-offset"] }
 time-tz = "1"
 printpdf = "0.5"
-trust-dns-resolver = "0.22"
+trust-dns-resolver = "0.23"
 log = "0.4"
 simplelog = "0.12"
 itertools = "0.11"
