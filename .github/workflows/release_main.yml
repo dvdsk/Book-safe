@@ -54,7 +54,7 @@ jobs:
     needs: build
     steps:
     - name: Download binaries
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: book-safe
     - name: Release
