@@ -58,7 +58,7 @@ jobs:
       with:
         name: book-safe
     - name: Release
-      uses: "softprops/action-gh-release@v1"
+      uses: "softprops/action-gh-release@v2"
       with:
         prerelease: true
         name: "Stable"
