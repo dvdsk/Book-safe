@@ -19,7 +19,7 @@ time = { version = "0.3", features = ["local-offset"] }
 time-tz = "2"
 printpdf = "0.5"
 trust-dns-resolver = "0.23"
-log = "0.4"
+log = "0.4.21"
 simplelog = "0.12"
 itertools = "0.12"
 rust-fuzzy-search = "0.1"
