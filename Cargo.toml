@@ -12,7 +12,7 @@ keywords = ["remarkable"]
 
 [dependencies]
 clap = { version = "4", features = ["derive", "wrap_help"] }
-color-eyre = "0.6"
+color-eyre = "0.6.3"
 thiserror = "1"
 indextree = "4.6"
 time = { version = "0.3", features = ["local-offset"] }
