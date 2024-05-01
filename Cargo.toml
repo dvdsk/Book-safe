@@ -14,7 +14,7 @@ keywords = ["remarkable"]
 clap = { version = "4", features = ["derive", "wrap_help"] }
 color-eyre = "0.6"
 thiserror = "1"
-indextree = "4.6"
+indextree = "4.6.1"
 time = { version = "0.3", features = ["local-offset"] }
 time-tz = "2"
 printpdf = "0.5"
